@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Excel] Job created: ${jobId}, file: ${file.name}, size: ${buffer.length} bytes`);
 
-    const job = JobQueue.create({
+    JobQueue.create({
       id: jobId,
       type: 'excel',
       status: 'pending',
@@ -32,9 +32,11 @@ export async function POST(req: NextRequest) {
       try {
         console.log(`[Excel] Starting conversion for job ${jobId}`);
         JobQueue.update(jobId, { status: 'processing', progress: 10 });
-        const resultUrl = await convertExcelToPdf(buffer, { orientation, gridlines });
-        console.log(`[Excel] Conversion completed for job ${jobId}, result: ${resultUrl}`);
-        JobQueue.update(jobId, { status: 'completed', progress: 100, resultUrl });
+        
+        const filename = await convertExcelToPdf(buffer, { orientation, gridlines });
+        
+        console.log(`[Excel] Conversion completed for job ${jobId}, filename: ${filename}`);
+        JobQueue.update(jobId, { status: 'completed', progress: 100, filename });
       } catch (error: any) {
         console.error(`[Excel] Conversion failed for job ${jobId}:`, error);
         JobQueue.update(jobId, { status: 'failed', error: error.message });

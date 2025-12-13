@@ -31,25 +31,23 @@ export function TabExcel() {
     setLoading(true);
 
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target?.result?.toString().split(',')[1];
-        
-        const res = await fetch('/api/convert/excel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileData: base64,
-            options,
-          }),
-        });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('orientation', options.orientation);
+      formData.append('gridlines', options.gridlines.toString());
+      
+      const res = await fetch('/api/convert/excel', {
+        method: 'POST',
+        body: formData,
+      });
 
-        const data = await res.json();
-        if (data.jobId) {
-          router.push(`/preview/${data.jobId}`);
-        }
-      };
-      reader.readAsDataURL(file);
+      const data = await res.json();
+      if (data.jobId) {
+        router.push(`/preview/${data.jobId}`);
+      } else {
+        console.error('No jobId received');
+        setLoading(false);
+      }
     } catch (error) {
       console.error('Conversion failed:', error);
       setLoading(false);

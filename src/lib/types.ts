@@ -1,4 +1,3 @@
-
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 export interface ConversionJob {
@@ -6,7 +5,7 @@ export interface ConversionJob {
   type: 'excel' | 'html-file' | 'html-code' | 'url';
   status: JobStatus;
   progress: number;
-  resultUrl?: string;
+  filename?: string; // PDF filename in /public/temp
   originalName?: string;
   error?: string;
   createdAt: number;

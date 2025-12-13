@@ -1,9 +1,7 @@
 import path from 'path';
 import fs from 'fs';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execPromise = promisify(exec);
+import puppeteer from 'puppeteer';
+import * as XLSX from 'xlsx';
 
 const TEMP_DIR = path.join(process.cwd(), 'public', 'temp');
 if (!fs.existsSync(TEMP_DIR)) {
@@ -16,190 +14,303 @@ interface ConvertOptions {
   gridlines?: boolean;
 }
 
-// Simple HTML to PDF using browser print
+// Singleton browser instance for better performance
+let browserInstance: any = null;
+
+async function getBrowser() {
+  if (!browserInstance) {
+    console.log('[Converter] Launching Puppeteer browser...');
+    browserInstance = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+    });
+  }
+  return browserInstance;
+}
+
+// Generate PDF from HTML using Puppeteer
 async function generatePdfFromHtml(html: string, options: ConvertOptions): Promise<string> {
   const fileName = `${crypto.randomUUID()}.pdf`;
-  const htmlFileName = `${crypto.randomUUID()}.html`;
-  const htmlFilePath = path.join(TEMP_DIR, htmlFileName);
   const pdfFilePath = path.join(TEMP_DIR, fileName);
 
   console.log(`[Converter] Generating PDF: ${fileName}`);
-  console.log(`[Converter] Temp HTML path: ${htmlFilePath}`);
-
-  // Write HTML to temp file
-  fs.writeFileSync(htmlFilePath, html);
 
   try {
-    // Try to use wkhtmltopdf if available, otherwise fall back to basic HTML response
-    try {
-      const orientation = options.orientation || 'portrait';
-      const pageSize = options.paperSize || 'A4';
-      
-      await execPromise(
-        `wkhtmltopdf --orientation ${orientation} --page-size ${pageSize} "${htmlFilePath}" "${pdfFilePath}"`
-      );
-      console.log(`[Converter] wkhtmltopdf conversion successful: ${pdfFilePath}`);
-    } catch (error) {
-      console.log('[Converter] wkhtmltopdf not available, using fallback HTML method');
-      
-      // Fallback: Create a simple PDF placeholder that explains conversion needs external tools
-      const fallbackHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body {
-      font-family: 'Arial', sans-serif;
-      padding: 40px;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    .content {
-      border: 2px solid #333;
-      padding: 20px;
-      margin: 20px 0;
-    }
-    h1 { color: #333; }
-    pre {
-      background: #f4f4f4;
-      padding: 15px;
-      border-radius: 5px;
-      overflow-x: auto;
-    }
-  </style>
-</head>
-<body>
-  <h1>Conversion Preview</h1>
-  <div class="content">
-    ${html}
-  </div>
-  <p><small>Note: This is a preview. For full PDF conversion, install wkhtmltopdf or puppeteer.</small></p>
-</body>
-</html>`;
-      
-      const fallbackPath = pdfFilePath.replace('.pdf', '.html');
-      fs.writeFileSync(fallbackPath, fallbackHtml);
-      console.log(`[Converter] Fallback HTML saved: ${fallbackPath}`);
-      // For now, return HTML file as "PDF"
-      fs.unlinkSync(htmlFilePath);
-      return `/temp/${fileName.replace('.pdf', '.html')}`;
-    }
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+    
+    await page.setContent(html, {
+      waitUntil: 'networkidle0',
+      timeout: 30000
+    });
 
-    // Clean up temp HTML file
-    fs.unlinkSync(htmlFilePath);
-    console.log(`[Converter] PDF generation complete, result URL: /temp/${fileName}`);
-    return `/temp/${fileName}`;
+    const pdfOptions: any = {
+      path: pdfFilePath,
+      format: options.paperSize || 'A4',
+      landscape: options.orientation === 'landscape',
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px'
+      }
+    };
+
+    await page.pdf(pdfOptions);
+    await page.close();
+
+    console.log(`[Converter] PDF generated successfully: ${pdfFilePath}`);
+    return fileName; // Return just the filename, not the full path
   } catch (error) {
-    // Clean up on error
-    if (fs.existsSync(htmlFilePath)) {
-      fs.unlinkSync(htmlFilePath);
-    }
-    console.error('[Converter] Error during PDF generation:', error);
-    throw error;
+    console.error('[Converter] Error generating PDF:', error);
+    throw new Error(`PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
+// Convert Excel to PDF
 export async function convertExcelToPdf(buffer: Buffer, options: ConvertOptions): Promise<string> {
-  // For now, create a simple HTML table representation
-  // In production, you'd want to use xlsx package here
-  const htmlTable = `
-    <table border="${options.gridlines ? '1' : '0'}">
-      <tr><th>Data Preview</th></tr>
-      <tr><td>Excel file received: ${buffer.length} bytes</td></tr>
-      <tr><td>Install 'xlsx' package for full Excel parsing</td></tr>
-    </table>
-  `;
+  console.log('[Converter] Converting Excel to PDF...');
+  
+  try {
+    // Parse Excel file
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Convert to HTML with styling
+    const htmlTable = XLSX.utils.sheet_to_html(worksheet, {
+      id: 'excel-table',
+      editable: false
+    });
 
-  const styles = `
-    <style>
-      body { font-family: sans-serif; padding: 20px; }
-      table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-      td, th { border: ${options.gridlines ? '1px solid #ccc' : 'none'}; padding: 12px; text-align: left; }
-      th { background-color: #f4f4f4; font-weight: bold; }
-      h1 { color: #333; }
-    </style>
-  `;
+    const styles = `
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        body { 
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          padding: 20px;
+          background: white;
+        }
+        h1 { 
+          color: #2c3e50;
+          margin-bottom: 20px;
+          font-size: 24px;
+        }
+        table { 
+          border-collapse: collapse;
+          width: 100%;
+          margin: 20px 0;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        td, th { 
+          border: ${options.gridlines ? '1px solid #ddd' : 'none'};
+          padding: 12px 16px;
+          text-align: left;
+          font-size: 14px;
+        }
+        th { 
+          background-color: #3498db;
+          color: white;
+          font-weight: 600;
+          text-transform: uppercase;
+          font-size: 12px;
+          letter-spacing: 0.5px;
+        }
+        tr:nth-child(even) {
+          background-color: #f8f9fa;
+        }
+        tr:hover {
+          background-color: #e8f4f8;
+        }
+      </style>
+    `;
 
-  const finalHtml = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="UTF-8">
-        ${styles}
-      </head>
-      <body>
-        <h1>Excel Document</h1>
-        ${htmlTable}
-      </body>
-    </html>
-  `;
-
-  return await generatePdfFromHtml(finalHtml, options);
-}
-
-export async function convertHtmlToPdf(htmlContent: string, options: ConvertOptions): Promise<string> {
-  // Basic HTML sanitization (remove script tags)
-  let cleanHtml = htmlContent
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
-
-  // Wrap if not complete document
-  let finalHtml = cleanHtml;
-  if (!finalHtml.includes('<html')) {
-    finalHtml = `
+    const finalHtml = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="UTF-8">
-          <style>
-            body { 
-              font-family: sans-serif; 
-              padding: 20px;
-              line-height: 1.6;
-            }
-          </style>
+          ${styles}
         </head>
-        <body>${cleanHtml}</body>
+        <body>
+          <h1>Excel Document - ${sheetName}</h1>
+          ${htmlTable}
+        </body>
       </html>
     `;
+
+    return await generatePdfFromHtml(finalHtml, options);
+  } catch (error) {
+    console.error('[Converter] Excel conversion error:', error);
+    throw new Error(`Excel conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// Convert HTML to PDF
+export async function convertHtmlToPdf(htmlContent: string, options: ConvertOptions): Promise<string> {
+  console.log('[Converter] Converting HTML to PDF...');
+  
+  try {
+    // Sanitize HTML - remove potentially harmful content
+    let cleanHtml = htmlContent
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
+
+    // Wrap if not a complete document
+    let finalHtml = cleanHtml;
+    if (!finalHtml.toLowerCase().includes('<html')) {
+      finalHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                padding: 30px;
+                line-height: 1.8;
+                color: #333;
+                background: white;
+              }
+              h1, h2, h3 { margin-top: 24px; margin-bottom: 16px; }
+              p { margin-bottom: 12px; }
+              code { 
+                background: #f4f4f4;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-family: 'Courier New', monospace;
+              }
+              pre {
+                background: #f4f4f4;
+                padding: 16px;
+                border-radius: 6px;
+                overflow-x: auto;
+                margin: 16px 0;
+              }
+            </style>
+          </head>
+          <body>${cleanHtml}</body>
+        </html>
+      `;
+    }
+
+    return await generatePdfFromHtml(finalHtml, options);
+  } catch (error) {
+    console.error('[Converter] HTML conversion error:', error);
+    throw new Error(`HTML conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// Check internet connectivity
+async function checkInternetConnection(): Promise<boolean> {
+  try {
+    const response = await fetch('https://www.google.com', {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(5000)
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Convert URL to PDF (requires internet)
+export async function convertUrlToPdf(url: string, options: ConvertOptions): Promise<string> {
+  console.log(`[Converter] Converting URL to PDF: ${url}`);
+  
+  // Check internet connection first
+  const isOnline = await checkInternetConnection();
+  if (!isOnline) {
+    throw new Error('Internet connection required for URL conversion. Please check your connection and try again.');
   }
 
-  return await generatePdfFromHtml(finalHtml, options);
+  // Validate URL
+  try {
+    new URL(url);
+  } catch {
+    throw new Error('Invalid URL format. Please provide a valid website URL.');
+  }
+
+  const fileName = `${crypto.randomUUID()}.pdf`;
+  const pdfFilePath = path.join(TEMP_DIR, fileName);
+
+  try {
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+    
+    // Set viewport and user agent
+    await page.setViewport({ width: 1280, height: 800 });
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+
+    console.log(`[Converter] Navigating to URL: ${url}`);
+    
+    // Navigate to URL with timeout
+    await page.goto(url, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+
+    // Remove unnecessary elements for cleaner PDF
+    await page.evaluate(() => {
+      // Remove cookie banners, popups, ads
+      const selectorsToRemove = [
+        '[class*="cookie"]',
+        '[class*="gdpr"]',
+        '[class*="banner"]',
+        '[id*="cookie"]',
+        '[class*="popup"]',
+        '[class*="modal"]',
+        'iframe[src*="ads"]',
+        '[class*="advertisement"]'
+      ];
+      
+      selectorsToRemove.forEach(selector => {
+        document.querySelectorAll(selector).forEach(el => el.remove());
+      });
+    });
+
+    const pdfOptions: any = {
+      path: pdfFilePath,
+      format: options.paperSize || 'A4',
+      landscape: options.orientation === 'landscape',
+      printBackground: true,
+      margin: {
+        top: '20px',
+        right: '20px',
+        bottom: '20px',
+        left: '20px'
+      }
+    };
+
+    await page.pdf(pdfOptions);
+    await page.close();
+
+    console.log(`[Converter] URL PDF generated successfully: ${pdfFilePath}`);
+    return fileName;
+  } catch (error) {
+    console.error('[Converter] URL conversion error:', error);
+    
+    if (error instanceof Error) {
+      if (error.message.includes('timeout')) {
+        throw new Error('Website took too long to load. Please try again or use a different URL.');
+      }
+      if (error.message.includes('net::ERR')) {
+        throw new Error('Could not access the website. Please check the URL and your internet connection.');
+      }
+    }
+    
+    throw new Error(`URL conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
-export async function convertUrlToPdf(url: string, options: ConvertOptions): Promise<string> {
-  // URL conversion requires internet access
-  // This is a placeholder implementation
-  const html = `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="UTF-8">
-        <style>
-          body {
-            font-family: sans-serif;
-            padding: 40px;
-            max-width: 800px;
-            margin: 0 auto;
-          }
-          .url-box {
-            background: #f0f0f0;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
-          }
-        </style>
-      </head>
-      <body>
-        <h1>URL Conversion Request</h1>
-        <div class="url-box">
-          <strong>URL:</strong> ${url}
-        </div>
-        <p>URL conversion requires internet access and puppeteer.</p>
-        <p>Install puppeteer to enable full URL-to-PDF conversion.</p>
-      </body>
-    </html>
-  `;
-
-  return await generatePdfFromHtml(html, options);
-}
+// Cleanup function to close browser when process exits
+process.on('exit', async () => {
+  if (browserInstance) {
+    await browserInstance.close();
+  }
+});
