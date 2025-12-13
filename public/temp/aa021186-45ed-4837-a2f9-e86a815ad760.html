@@ -1,0 +1,459 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .content {
+      border: 2px solid #333;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    h1 { color: #333; }
+    pre {
+      background: #f4f4f4;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Conversion Preview</h1>
+  <div class="content">
+    <!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sample HTML Document</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 40px;
+      line-height: 1.6;
+    }
+    h1, h2 {
+      color: #0B2545;
+    }
+    img {
+      max-width: 400px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Welcome to Sample HTML</h1>
+  <p>This is a basic HTML document used to test PDF conversion. It includes headings, images, lists, and styled text.</p>
+
+  <h2>Image Example</h2>
+  <img src="https://images.unsplash.com/photo-1519682337058-a94d519337bc?w=800" alt="Mountain Example">
+
+  <h2>Features</h2>
+  <ul>
+    <li>Simple structure</li>
+    <li>Clean stylesheet</li>
+    <li>PDF conversion-friendly</li>
+  </ul>
+
+  <p>Thank you for using the HTML → PDF Converter!</p>
+
+</body>
+</html> -->
+
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Comprehensive Sample Document — HTML → PDF Converter Test</title>
+  <meta name="description" content="A large, production-ready HTML sample document containing headings, images, tables, code, and print-friendly styles for PDF conversion testing." />
+  <meta name="author" content="Shrewd Business Solutions" />
+  <style>
+    /* ===========================
+       Critical / Inline CSS
+       =========================== */
+
+    :root{
+      --page-width: 900px;
+      --primary: #0B2545;
+      --accent: #E3B23C;
+      --muted: #6B7280;
+      --bg: #ffffff;
+      --surface: #F7F7F7;
+      --max-content-width: 900px;
+      --content-padding: 28px;
+      --reader-font: "Merriweather", Georgia, serif;
+      --ui-font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html,body{
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(180deg,#fbfdff 0%, #ffffff 100%);
+      color: #111827;
+      font-family: var(--ui-font);
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* Layout */
+    .wrap {
+      max-width: var(--max-content-width);
+      margin: 36px auto;
+      background: var(--bg);
+      border-radius: 10px;
+      box-shadow: 0 8px 30px rgba(11,37,69,0.06);
+      overflow: hidden;
+      padding: 0;
+    }
+
+    header.site-header {
+      padding: 28px;
+      display:flex;
+      gap:18px;
+      align-items:center;
+      border-bottom: 1px solid rgba(11,37,69,0.04);
+      background: linear-gradient(180deg, rgba(11,37,69,0.02), transparent);
+    }
+
+    .brand {
+      display:flex;
+      gap:12px;
+      align-items:center;
+    }
+
+    .brand .logo {
+      width:56px;height:56px;border-radius:8px;
+      background: linear-gradient(135deg,var(--primary), #162f5a);
+      display:inline-flex; align-items:center; justify-content:center; color:white; font-weight:700;
+      box-shadow: 0 6px 18px rgba(11,37,69,0.08);
+    }
+
+    .brand h1 {
+      margin:0; font-size:18px; color:var(--primary); font-family:var(--ui-font);
+    }
+    .brand p { margin:0; font-size:12px; color:var(--muted) }
+
+    nav.toc-nav {
+      margin-left:auto;
+    }
+    nav.toc-nav a {
+      margin-left:12px; text-decoration:none; color:var(--muted); font-size:14px;
+    }
+    nav.toc-nav a:hover { color:var(--primary) }
+
+    /* Content */
+    main.article {
+      padding: var(--content-padding);
+    }
+
+    .meta {
+      display:flex; gap:14px; align-items:center; margin-bottom:18px;
+    }
+    .meta .badge { font-size:12px; color:var(--accent); font-weight:700; padding:6px 10px; background: #fff6df; border-radius:999px; border:1px solid rgba(227,178,60,0.12) }
+
+    .lead { font-size:18px; margin-bottom:20px; color:#374151; max-width:880px; line-height:1.6; font-family:var(--ui-font) }
+
+    h2 { color: var(--primary); font-family: var(--ui-font); margin-top:32px; margin-bottom:10px; font-size:24px; }
+    h3 { margin-top:20px; margin-bottom:8px; font-size:18px; color:#0b2545; }
+
+    p { margin: 0 0 14px 0; color:#374151; line-height:1.6; }
+
+    /* TOC */
+    .toc {
+      background: linear-gradient(180deg, #fbfbff, #ffffff);
+      border-left: 4px solid rgba(11,37,69,0.03);
+      padding: 16px;
+      margin: 18px 0;
+      border-radius:6px;
+    }
+    .toc a { color:#0b2545; text-decoration:none; display:block; margin:6px 0; font-size:14px }
+    .toc a:hover { text-decoration:underline; color:var(--accent) }
+
+    /* Images */
+    .figure { margin:18px 0; display:flex; gap:16px; align-items:flex-start; }
+    .figure img { max-width: 100%; height:auto; border-radius:8px; box-shadow: 0 8px 24px rgba(11,37,69,0.06) }
+    .figure figcaption { font-size:13px; color:var(--muted) }
+
+    /* Table */
+    table.simple {
+      width:100%;
+      border-collapse: collapse;
+      margin: 18px 0;
+      font-size:14px;
+    }
+    table.simple th, table.simple td {
+      padding:10px 12px;
+      border:1px solid rgba(11,37,69,0.06);
+      text-align:left;
+    }
+    table.simple th {
+      background: linear-gradient(180deg,#0B2545,#12315a);
+      color:white; font-weight:600;
+    }
+
+    /* Lists & code */
+    ul, ol { margin: 12px 0 12px 20px; }
+    code.inline { background: #f3f4f6; padding:3px 6px; border-radius:6px; font-family: Menlo, monospace; font-size:13px; }
+    pre { background:#0b1220; color:#e6f0ff; padding:14px; border-radius:8px; overflow:auto; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace; font-size:13px }
+
+    /* Blockquote */
+    blockquote { margin: 12px 0; padding: 12px 18px; border-left: 4px solid rgba(11,37,69,0.08); background: #fcfdff; color:#374151; border-radius:6px; }
+
+    /* Sidebar / notes */
+    aside.notes { background: linear-gradient(180deg,#fff,#fbfbff); padding:12px; border-radius:8px; border:1px solid rgba(11,37,69,0.03); color:#374151; margin:18px 0; }
+
+    /* Footer (screen) */
+    footer.doc-footer { padding:18px; font-size:13px; color:var(--muted); border-top:1px solid rgba(11,37,69,0.04); background: linear-gradient(180deg, rgba(11,37,69,0.01), transparent); display:flex; justify-content:space-between; align-items:center }
+
+    /* Small helpers */
+    .muted { color:var(--muted) }
+    .kbd { display:inline-block; padding:4px 8px; border-radius:6px; background:#f3f4f6; border:1px solid #e6e9ef; font-family:monospace; font-size:12px }
+
+    /* Responsive */
+    @media (max-width:720px){
+      .wrap { margin:18px; border-radius:8px }
+      h2 { font-size:20px }
+      header.site-header { padding:16px }
+      .brand h1 { font-size:16px }
+      .lead { font-size:16px }
+      pre { font-size:12px }
+    }
+
+    /* ===========================
+       Print / PDF-specific rules
+       These help produce better PDFs from headless browsers.
+       =========================== */
+
+    @media print {
+      html,body { background: #fff; color: #111; }
+      .wrap { box-shadow: none; border-radius: 0; margin: 0; max-width: none; }
+      header.site-header, footer.doc-footer { display: block; position: running(header) } /* For browsers supporting named pages */
+      /* Print header/footer via @page rules where supported */
+      @page {
+        size: A4;
+        margin: 15mm;
+      }
+      /* Avoid splitting critical elements */
+      .figure, .toc, pre, table.simple, blockquote { break-inside: avoid; page-break-inside: avoid; }
+      /* Force page breaks before important sections if flagged */
+      .page-break { break-after: page; page-break-after: always; }
+      /* Header/Footer fixed at top/bottom on each printed page for engines that support it */
+      header.site-header { position: fixed; top: 0; left: 0; right: 0; background:#fff; padding:8px 20px; border-bottom:1px solid #eee; }
+      footer.doc-footer { position: fixed; bottom: 0; left: 0; right: 0; background:#fff; padding:8px 20px; border-top:1px solid #eee; }
+      main.article { margin-top:72px; margin-bottom:48px; }
+    }
+
+  /* End CSS */
+  </style>
+</head>
+<body>
+
+  <div class="wrap" role="document" aria-label="Sample large document for HTML to PDF conversion">
+
+    <!-- Header (visible on screen; print header handled via @page rules above) -->
+    <header class="site-header" role="banner" aria-label="Document header">
+      <div class="brand" aria-hidden="false">
+        <div class="logo" aria-hidden="true">S</div>
+        <div>
+          <h1>Shrewd Business Solutions</h1>
+          <p class="muted">HTML → PDF Converter — test document</p>
+        </div>
+      </div>
+
+      <nav class="toc-nav" role="navigation" aria-label="Quick links">
+        <!-- These links mirror the TOC and help PDF generators create bookmarks -->
+        <a href="#introduction">Introduction</a>
+        <a href="#features">Features</a>
+        <a href="#report">Report</a>
+        <a href="#appendix">Appendix</a>
+      </nav>
+    </header>
+
+    <!-- Main content -->
+    <main class="article" role="main">
+      <div class="meta" aria-hidden="true">
+        <div class="badge">SAMPLE — FULL DOCUMENT</div>
+        <div class="muted">Generated for PDF conversion testing • Last updated: <strong>2025-12-10</strong></div>
+      </div>
+
+      <p class="lead">This is an extended sample document intended to test the capabilities of an HTML → PDF conversion pipeline. It contains many typical structures found in real documents — headings, images, tables, code samples, lists, and a table of contents. Renderers should preserve heading order, images, and create bookmarks and a coherent PDF layout.</p>
+
+      <!-- Table of Contents -->
+      <section class="toc" aria-label="Table of contents">
+        <strong>Contents</strong>
+        <a href="#introduction">1. Introduction</a>
+        <a href="#features">2. Features</a>
+        <a href="#report">3. Quarterly Report</a>
+        <a href="#analysis">4. Analysis</a>
+        <a href="#code-sample">5. Code Sample</a>
+        <a href="#appendix">6. Appendix & Images</a>
+        <a href="#contact">7. Contact</a>
+      </section>
+
+      <!-- Intro -->
+      <article id="introduction" aria-labelledby="h-intro">
+        <h2 id="h-intro">1. Introduction</h2>
+        <p>The goal of this document is to be large enough and varied enough to exercise PDF rendering rules: headers, footers, table splitting, page breaks, bookmarks, image compression decisions, inline critical CSS, and accessibility tags. Use this file to test: Playwright/Puppeteer rendering, CSS print rules, image inlining, and AI analysis extraction.</p>
+
+        <p>Notes for analyzer: detect headings (h2/h3), images, tables, and long lists. Provide <code class="inline">cleaned_html</code> that removes remote JS and inlines critical styles. Suggest page-break hints for the long table in section 3 and for the appendix images.</p>
+      </article>
+
+      <!-- Features -->
+      <article id="features" aria-labelledby="h-features">
+        <h2 id="h-features">2. Features</h2>
+
+        <h3>2.1 Document Structure</h3>
+        <p>Well-structured documents improve readability and PDF conversion. Ensure headings and lists are maintained. This sample contains nested lists and a definition list below.</p>
+
+        <h3>2.2 Accessibility</h3>
+        <p>All images include descriptive <code class="inline">alt</code> text. Headings use proper order. Tables have header rows. Use appropriate ARIA attributes where interactive components exist.</p>
+
+        <h3>2.3 Print Optimizations</h3>
+        <ul>
+          <li>Set suitable page margins (default 15mm for A4).</li>
+          <li>Avoid splitting table rows across pages where possible.</li>
+          <li>Embed or subset fonts for consistent rendering.</li>
+        </ul>
+
+        <aside class="notes" aria-label="Important note about page breaks">
+          <strong>Renderer hint:</strong> Add <code>.page-break</code> before the "Quarterly Report" section if the previous content is long and you want the report to start on a fresh page.
+        </aside>
+      </article>
+
+      <!-- Large table / report section -->
+      <article id="report" aria-labelledby="h-report">
+        <h2 id="h-report">3. Quarterly Report</h2>
+        <p>This section includes a wide table which should be split across pages gracefully. The renderer should repeat header rows when the table continues on the next page.</p>
+
+        <h3>3.1 Revenue & Performance</h3>
+        <table class="simple" role="table" aria-label="Quarterly performance table">
+          <thead>
+            <tr>
+              <th>Region</th>
+              <th>Q1 Revenue</th>
+              <th>Q2 Revenue</th>
+              <th>Q3 Revenue</th>
+              <th>Q4 Revenue</th>
+              <th>FY Growth</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>EMEA</td><td>$2,520,000</td><td>$2,620,000</td><td>$2,900,000</td><td>$3,200,000</td><td>+18%</td></tr>
+            <tr><td>Americas</td><td>$4,150,000</td><td>$4,500,000</td><td>$4,800,000</td><td>$5,100,000</td><td>+22%</td></tr>
+            <tr><td>APAC</td><td>$1,300,000</td><td>$1,420,000</td><td>$1,700,000</td><td>$1,920,000</td><td>+17%</td></tr>
+            <tr><td>LatAm</td><td>$420,000</td><td>$460,000</td><td>$480,000</td><td>$510,000</td><td>+11%</td></tr>
+            <!-- Repeat rows to create a long table for page-splitting test -->
+            <tr><td>EMEA - Product A</td><td>$620,000</td><td>$650,000</td><td>$670,000</td><td>$700,000</td><td>+12%</td></tr>
+            <tr><td>EMEA - Product B</td><td>$480,000</td><td>$520,000</td><td>$560,000</td><td>$590,000</td><td>+8%</td></tr>
+            <tr><td>Americas - Product A</td><td>$1,200,000</td><td>$1,260,000</td><td>$1,320,000</td><td>$1,380,000</td><td>+15%</td></tr>
+            <tr><td>Americas - Product B</td><td>$780,000</td><td>$830,000</td><td>$880,000</td><td>$920,000</td><td>+10%</td></tr>
+            <tr><td>APAC - Product A</td><td>$510,000</td><td>$540,000</td><td>$590,000</td><td>$630,000</td><td>+16%</td></tr>
+            <tr><td>APAC - Product B</td><td>$240,000</td><td>$280,000</td><td>$350,000</td><td>$420,000</td><td>+20%</td></tr>
+            <tr><td>LatAm - Product A</td><td>$120,000</td><td>$130,000</td><td>$140,000</td><td>$160,000</td><td>+9%</td></tr>
+            <tr><td>LatAm - Product B</td><td>$80,000</td><td>$90,000</td><td>$95,000</td><td>$100,000</td><td>+7%</td></tr>
+            <!-- Add more rows if you need an even longer table -->
+          </tbody>
+        </table>
+
+        <p>The table above should be tested for splitting across pages and repeating headers. Mark rows or groupings that must not be split (use <code>break-inside: avoid</code> on certain selectors where needed).</p>
+
+        <div class="page-break" aria-hidden="true"></div> <!-- hint to force page break in print -->
+      </article>
+
+      <!-- Analysis -->
+      <article id="analysis" aria-labelledby="h-analysis">
+        <h2 id="h-analysis">4. Analysis</h2>
+        <p>The analysis section provides interpretation and a narrative wrapped around the numeric results. This tests text flow, paragraph wrapping, and ability to render long-form content across pages.</p>
+
+        <h3>4.1 Executive Summary</h3>
+        <p>Overall the company saw strong growth, driven primarily by product adoption in the Americas and steady recoveries in APAC. The AI-driven product improvements contributed significantly to customer retention.</p>
+
+        <h3>4.2 Observations</h3>
+        <ul>
+          <li>Growth concentrated in the premium product tier.</li>
+          <li>Churn reduced by 3% quarter-over-quarter.</li>
+          <li>Marketing ROI improved where targeted campaigns were used.</li>
+        </ul>
+
+        <blockquote cite="#h-analysis">"Data-driven decisions and AI automation remain the key accelerators for our growth." — Chief Data Officer</blockquote>
+
+      </article>
+
+      <!-- Code sample -->
+      <article id="code-sample" aria-labelledby="h-code">
+        <h2 id="h-code">5. Code Sample</h2>
+        <p>Include preformatted code blocks to test monospace rendering and wrapping in PDFs:</p>
+
+        <pre><code>
+// Example: Simple server route to receive HTML and return a job ID
+const express = require('express');
+const app = express();
+
+app.post('/api/upload', express.json({limit: '12mb'}), async (req, res) => {
+  const { html } = req.body;
+  if (!html) return res.status(400).send({ error: 'Missing html' });
+  // persist, enqueue job, return jobId
+  const jobId = await enqueueJob({ html });
+  res.json({ jobId });
+});
+        </code></pre>
+      </article>
+
+      <!-- Appendix with images -->
+      <article id="appendix" aria-labelledby="h-appendix">
+        <h2 id="h-appendix">6. Appendix & Images</h2>
+        <p>The appendix contains large images; renderers should detect large images and suggest compression when > 1MB.</p>
+
+        <figure class="figure" aria-labelledby="fig1">
+          <img src="https://images.unsplash.com/photo-1519682337058-a94d519337bc?w=1600" alt="High mountain range at sunrise" loading="lazy" />
+          <figcaption id="fig1">Figure 1 — Mountain sunrise. (Suggested: compress to 70% for PDF where file size is an issue.)</figcaption>
+        </figure>
+
+        <figure class="figure" aria-labelledby="fig2">
+          <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1600" alt="Abstract cityscape photography" loading="lazy" />
+          <figcaption id="fig2">Figure 2 — Cityscape. (Large image test.)</figcaption>
+        </figure>
+
+        <p>If the renderer detects an image with a large file size, it should mark <code>needsCompression: true</code> in the AI analysis output.</p>
+      </article>
+
+      <!-- Contact -->
+      <article id="contact" aria-labelledby="h-contact">
+        <h2 id="h-contact">7. Contact</h2>
+        <p>For questions about this sample document, contact <strong>Shrewd Business Solutions</strong> at <a href="mailto:info@shrewdbs.com">info@shrewdbs.com</a>.</p>
+
+        <dl>
+          <dt>Address</dt>
+          <dd>1234 Sample St, Suite 100, Business City, Country</dd>
+
+          <dt>Phone</dt>
+          <dd>+1 (555) 123-4567</dd>
+        </dl>
+      </article>
+    </main>
+
+    <!-- Footer (screen). Print will place footer by @media print rules -->
+    <footer class="doc-footer" role="contentinfo" aria-label="Document footer">
+      <div>© <span id="yr"></span> Shrewd Business Solutions</div>
+      <div class="muted">Generated sample — for testing HTML → PDF conversion</div>
+    </footer>
+
+  </div>
+
+  
+</body>
+</html>
+
+  </div>
+  <p><small>Note: This is a preview. For full PDF conversion, install wkhtmltopdf or puppeteer.</small></p>
+</body>
+</html>
