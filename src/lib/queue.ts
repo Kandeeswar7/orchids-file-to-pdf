@@ -1,4 +1,3 @@
-
 import { ConversionJob } from './types';
 
 // In-memory store for jobs
