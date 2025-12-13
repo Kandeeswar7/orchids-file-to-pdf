@@ -1,8 +1,6 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { JobQueue } from '@/lib/queue';
 import { convertUrlToPdf } from '@/lib/converter';
-import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +11,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No URL provided' }, { status: 400 });
     }
 
-    const jobId = uuidv4();
+    const jobId = crypto.randomUUID();
 
     const job = JobQueue.create({
       id: jobId,
