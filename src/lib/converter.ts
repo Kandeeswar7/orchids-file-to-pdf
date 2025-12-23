@@ -1,58 +1,17 @@
 import path from 'path';
 import fs from 'fs';
-
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
-
 import os from 'os';
+import { getBrowser } from './browser';
 
 // Use system temp directory for serverless compatibility
 const TEMP_DIR = os.tmpdir();
-
-// No need to manually create os.tmpdir(), it exists
-
 
 interface ConvertOptions {
   orientation?: 'portrait' | 'landscape';
   paperSize?: 'A4' | 'Letter';
   gridlines?: boolean;
-}
-
-import puppeteerCore from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
-
-// Singleton browser instance for better performance
-let browserInstance: any = null;
-
-async function getBrowser() {
-  if (!browserInstance) {
-    const isProd = process.env.NETLIFY === 'true' || process.env.NODE_ENV === 'production';
-
-    if (isProd) {
-      console.log('[Converter] Launching Serverless Puppeteer...');
-      
-      // Configuration for Netlify/AWS Lambda
-      const chromiumAny = chromium as any;
-      chromiumAny.setGraphicsMode = false; // Optional, boosts performance
-      
-      browserInstance = await puppeteerCore.launch({
-        args: chromiumAny.args,
-        defaultViewport: chromiumAny.defaultViewport,
-        executablePath: await chromiumAny.executablePath(),
-        headless: chromiumAny.headless,
-
-      });
-    } else {
-      console.log('[Converter] Launching Local Puppeteer...');
-      // Dynamic import to prevent bundling in production
-      const puppeteer = await import('puppeteer');
-      browserInstance = await puppeteer.default.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-      });
-    }
-  }
-  return browserInstance;
 }
 
 // Generate PDF from HTML using Puppeteer
@@ -395,9 +354,8 @@ export async function convertUrlToPdf(url: string, options: ConvertOptions): Pro
   }
 }
 
-// Cleanup function to close browser when process exits
+// Cleanup handled by browser.ts or process exit
 process.on('exit', async () => {
-  if (browserInstance) {
-    await browserInstance.close();
-  }
+    // Browser instance is now managed in browser.ts
+    // We can leave this empty or remove it.
 });
