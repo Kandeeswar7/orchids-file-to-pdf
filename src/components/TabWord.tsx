@@ -48,17 +48,30 @@ export function TabWord() {
         body: formData,
       });
 
-      const data = await res.json();
-      if (data.jobId) {
-        router.push(`/preview/${data.jobId}`);
-      } else {
-        console.error("No jobId received");
-        alert("Conversion failed. Please try again.");
-        setLoading(false);
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Conversion failed");
       }
-    } catch (error) {
+
+      // Check for PDF content type
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/pdf")) {
+        throw new Error("Invalid response format");
+      }
+
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const jobId = res.headers.get("X-Job-Id") || crypto.randomUUID();
+
+      // Store result in client-side store
+      // We need to dynamically import JobStore or ensure it's client-safe (it is)
+      const { JobStore } = await import("@/lib/job-store");
+      JobStore.set(jobId, blobUrl, `converted-${file.name}.pdf`);
+
+      router.push(`/preview/${jobId}`);
+    } catch (error: any) {
       console.error("Conversion failed:", error);
-      alert("Conversion failed. Please check the file and try again.");
+      alert(`Conversion failed: ${error.message || "Please try again."}`);
       setLoading(false);
     }
   };

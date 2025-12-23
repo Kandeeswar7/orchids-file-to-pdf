@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { JobQueue } from '@/lib/queue';
 import { convertHtmlToPdf } from '@/lib/converter';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,35 +31,36 @@ export async function POST(req: NextRequest) {
 
     console.log(`[HTML] Job created: ${jobId}, source: ${originalName}, length: ${htmlContent.length} chars`);
 
-    JobQueue.create({
-      id: jobId,
-      type: htmlContent.length > 1000 ? 'html-file' : 'html-code',
-      status: 'pending',
-      progress: 0,
-      createdAt: Date.now(),
-      originalName
+    // Synchronous processing
+    console.log(`[HTML] Starting conversion for job ${jobId}`);
+    const filename = await convertHtmlToPdf(htmlContent, { orientation: 'portrait' });
+    console.log(`[HTML] Conversion completed for job ${jobId}, filename: ${filename}`);
+
+    const filePath = path.join(os.tmpdir(), filename);
+
+    if (!fs.existsSync(filePath)) {
+       throw new Error("Generated PDF file not found");
+    }
+
+    const fileBuffer = fs.readFileSync(filePath);
+    
+    // Clean up temp file
+    try {
+        fs.unlinkSync(filePath);
+    } catch (e) {
+        console.warn("Failed to cleanup temp file", e);
+    }
+
+    return new NextResponse(fileBuffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="document.pdf"`,
+        'X-Job-Id': jobId
+      }
     });
 
-    // Start processing
-    (async () => {
-      try {
-        console.log(`[HTML] Starting conversion for job ${jobId}`);
-        JobQueue.update(jobId, { status: 'processing', progress: 10 });
-        
-        const filename = await convertHtmlToPdf(htmlContent, { orientation: 'portrait' });
-        
-        console.log(`[HTML] Conversion completed for job ${jobId}, filename: ${filename}`);
-        JobQueue.update(jobId, { status: 'completed', progress: 100, filename });
-      } catch (error: any) {
-        console.error(`[HTML] Conversion failed for job ${jobId}:`, error);
-        JobQueue.update(jobId, { status: 'failed', error: error.message });
-      }
-    })();
-
-    return NextResponse.json({ jobId });
-
-  } catch (error) {
+  } catch (error: any) {
     console.error('[HTML] API error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Conversion failed' }, { status: 500 });
   }
 }

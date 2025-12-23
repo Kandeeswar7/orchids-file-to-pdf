@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { JobQueue } from '@/lib/queue';
 import { convertExcelToPdf } from '@/lib/converter';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,34 +20,37 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Excel] Job created: ${jobId}, file: ${file.name}, size: ${buffer.length} bytes`);
 
-    JobQueue.create({
-      id: jobId,
-      type: 'excel',
-      status: 'pending',
-      progress: 0,
-      createdAt: Date.now(),
-      originalName: file.name
+    // Synchronous processing
+    console.log(`[Excel] Starting conversion for job ${jobId}`);
+    const filename = await convertExcelToPdf(buffer, { orientation, gridlines });
+    console.log(`[Excel] Conversion completed for job ${jobId}, filename: ${filename}`);
+
+    const filePath = path.join(os.tmpdir(), filename);
+    
+    if (!fs.existsSync(filePath)) {
+       throw new Error("Generated PDF file not found");
+    }
+
+    const fileBuffer = fs.readFileSync(filePath);
+    
+    // Clean up temp file
+    try {
+        fs.unlinkSync(filePath);
+    } catch (e) {
+        console.warn("Failed to cleanup temp file", e);
+    }
+
+    // Return the PDF file directly
+    return new NextResponse(fileBuffer, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="converted.pdf"`,
+        'X-Job-Id': jobId
+      }
     });
 
-    // Start processing in background
-    (async () => {
-      try {
-        console.log(`[Excel] Starting conversion for job ${jobId}`);
-        JobQueue.update(jobId, { status: 'processing', progress: 10 });
-        
-        const filename = await convertExcelToPdf(buffer, { orientation, gridlines });
-        
-        console.log(`[Excel] Conversion completed for job ${jobId}, filename: ${filename}`);
-        JobQueue.update(jobId, { status: 'completed', progress: 100, filename });
-      } catch (error: any) {
-        console.error(`[Excel] Conversion failed for job ${jobId}:`, error);
-        JobQueue.update(jobId, { status: 'failed', error: error.message });
-      }
-    })();
-
-    return NextResponse.json({ jobId });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[Excel] API error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Conversion failed' }, { status: 500 });
   }
 }

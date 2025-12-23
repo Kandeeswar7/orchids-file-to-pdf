@@ -1,13 +1,21 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Globe, ArrowRight, Loader2, AlertTriangle, Check, Wifi, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Globe,
+  ArrowRight,
+  Loader2,
+  AlertTriangle,
+  Check,
+  Wifi,
+  Sparkles,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export function TabUrl() {
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState("");
   const [isConverting, setIsConverting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const router = useRouter();
@@ -21,21 +29,36 @@ export function TabUrl() {
   const confirmConversion = async () => {
     try {
       setIsConverting(true);
-      
-      const response = await fetch('/api/convert/url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+
+      const response = await fetch("/api/convert/url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
 
-      if (response.ok) {
-        const { jobId } = await response.json();
-        router.push(`/preview/${jobId}`);
-      } else {
-        console.error('Conversion failed');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Conversion failed");
       }
-    } catch (error) {
-      console.error('Error converting URL:', error);
+
+      // Check for PDF content type
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/pdf")) {
+        throw new Error("Invalid response format");
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const jobId = response.headers.get("X-Job-Id") || crypto.randomUUID();
+
+      // Store result in client-side store
+      const { JobStore } = await import("@/lib/job-store");
+      JobStore.set(jobId, blobUrl, `website.pdf`);
+
+      router.push(`/preview/${jobId}`);
+    } catch (error: any) {
+      console.error("Error converting URL:", error);
+      alert(`Conversion failed: ${error.message || "Please try again."}`);
     } finally {
       setIsConverting(false);
       setShowConfirmation(false);
@@ -45,7 +68,7 @@ export function TabUrl() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <motion.div 
+      <motion.div
         className="space-y-2"
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -55,21 +78,27 @@ export function TabUrl() {
           <Sparkles className="w-5 h-5 text-blue-400" />
           Website to PDF
         </h2>
-        <p className="text-sm text-gray-400">Convert any public website URL into a PDF document</p>
+        <p className="text-sm text-gray-400">
+          Convert any public website URL into a PDF document
+        </p>
       </motion.div>
 
       {/* URL Input Section */}
       <div className="space-y-4">
         <div className="relative group">
-          <motion.div 
+          <motion.div
             className="absolute inset-y-0 left-5 flex items-center pointer-events-none"
             animate={{ scale: url ? 1.1 : 1 }}
             transition={{ type: "spring", stiffness: 400, damping: 20 }}
           >
-            <Globe className={cn(
-              "w-5 h-5 transition-colors duration-300",
-              url ? "text-blue-400" : "text-gray-500 group-focus-within:text-blue-400"
-            )} />
+            <Globe
+              className={cn(
+                "w-5 h-5 transition-colors duration-300",
+                url
+                  ? "text-blue-400"
+                  : "text-gray-500 group-focus-within:text-blue-400"
+              )}
+            />
           </motion.div>
           <input
             type="url"
@@ -101,7 +130,10 @@ export function TabUrl() {
           <Wifi className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
           <div className="text-sm text-blue-200">
             <p className="font-medium mb-1">Internet Connection Required</p>
-            <p className="text-blue-300/80 text-xs">This feature needs to fetch website content online. Your privacy is protected.</p>
+            <p className="text-blue-300/80 text-xs">
+              This feature needs to fetch website content online. Your privacy
+              is protected.
+            </p>
           </div>
         </motion.div>
 
@@ -110,14 +142,14 @@ export function TabUrl() {
           {showConfirmation && (
             <motion.div
               initial={{ opacity: 0, height: 0, marginTop: 0 }}
-              animate={{ opacity: 1, height: 'auto', marginTop: '1rem' }}
+              animate={{ opacity: 1, height: "auto", marginTop: "1rem" }}
               exit={{ opacity: 0, height: 0, marginTop: 0 }}
               transition={{ duration: 0.3 }}
               className="overflow-hidden"
             >
               <div className="bg-yellow-500/10 border-2 border-yellow-500/30 rounded-2xl p-6">
                 <div className="flex gap-4">
-                  <motion.div 
+                  <motion.div
                     className="flex-shrink-0"
                     animate={{ rotate: [0, -10, 10, -10, 0] }}
                     transition={{ duration: 0.5 }}
@@ -132,8 +164,9 @@ export function TabUrl() {
                         Confirm Internet Access
                       </p>
                       <p className="text-sm text-yellow-200/80">
-                        This action requires internet access to fetch the website content. 
-                        Do you want to proceed with the conversion?
+                        This action requires internet access to fetch the
+                        website content. Do you want to proceed with the
+                        conversion?
                       </p>
                     </div>
                     <div className="flex gap-3">
@@ -175,7 +208,7 @@ export function TabUrl() {
 
         {/* Continue Button */}
         {!showConfirmation && (
-          <motion.div 
+          <motion.div
             className="pt-4"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -190,7 +223,14 @@ export function TabUrl() {
                   ? "bg-white/5 text-gray-500 cursor-not-allowed"
                   : "bg-gradient-to-r from-blue-500 to-cyan-600 text-white shadow-lg shadow-blue-900/30"
               )}
-              whileHover={url ? { scale: 1.02, boxShadow: "0 20px 40px rgba(59, 130, 246, 0.4)" } : {}}
+              whileHover={
+                url
+                  ? {
+                      scale: 1.02,
+                      boxShadow: "0 20px 40px rgba(59, 130, 246, 0.4)",
+                    }
+                  : {}
+              }
               whileTap={url ? { scale: 0.98 } : {}}
             >
               <span>Continue</span>
