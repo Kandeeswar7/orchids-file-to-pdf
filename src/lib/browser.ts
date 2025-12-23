@@ -20,7 +20,13 @@ export async function getBrowser() {
         args: chromiumAny.args,
         executablePath: await chromiumAny.executablePath(),
         headless: chromiumAny.headless,
-        defaultViewport: chromiumAny.defaultViewport
+        defaultViewport: {
+          width: 794,
+          height: 1123,
+          deviceScaleFactor: 1,
+          isMobile: false,
+          hasTouch: false
+        }
       });
     } else {
       console.log('[Browser] Launching Local Puppeteer...');

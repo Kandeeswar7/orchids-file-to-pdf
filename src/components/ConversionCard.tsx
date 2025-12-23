@@ -68,9 +68,9 @@ export function ConversionCard() {
             return (
               <motion.button
                 key={tab.id}
-                id={`tab-${tab.id}`}
-                onClick={() => setActiveTab(tab.id)}
                 role="tab"
+                id={tab.id}
+                onClick={() => setActiveTab(tab.id)}
                 aria-selected={isActive}
                 aria-controls={`panel-${tab.id}`}
                 className={cn(

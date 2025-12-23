@@ -1,15 +1,16 @@
 import { JobQueue } from '../queue';
-import { Job } from '../types';
+import { ConversionJob } from '../types';
 
 describe('JobQueue', () => {
   beforeEach(() => {
     // Clear all jobs before each test
-    JobQueue['jobs'] = new Map();
+    // @ts-ignore - Accessing private property for testing
+    if (JobQueue.jobs) (JobQueue as any).jobs = new Map();
   });
 
   describe('create', () => {
     it('should create a new job with pending status', () => {
-      const jobData: Job = {
+      const jobData: ConversionJob = {
         id: 'test-job-1',
         type: 'html-code',
         status: 'pending',
@@ -71,7 +72,7 @@ describe('JobQueue', () => {
       expect(job?.progress).toBe(50);
     });
 
-    it('should update job to completed with result URL', () => {
+    it('should update job to completed with result', () => {
       const jobId = 'test-job-3';
       JobQueue.create({
         id: jobId,
@@ -85,13 +86,13 @@ describe('JobQueue', () => {
       JobQueue.update(jobId, {
         status: 'completed',
         progress: 100,
-        resultUrl: '/temp/test-output.pdf'
+        filename: 'test-output.pdf'
       });
 
       const job = JobQueue.get(jobId);
       expect(job?.status).toBe('completed');
       expect(job?.progress).toBe(100);
-      expect(job?.resultUrl).toBe('/temp/test-output.pdf');
+      expect(job?.filename).toBe('test-output.pdf');
     });
 
     it('should update job to failed with error message', () => {
@@ -128,7 +129,7 @@ describe('JobQueue', () => {
   describe('get', () => {
     it('should return job by ID', () => {
       const jobId = 'test-job-5';
-      const jobData: Job = {
+      const jobData: ConversionJob = {
         id: jobId,
         type: 'html-file',
         status: 'processing',
@@ -185,12 +186,12 @@ describe('JobQueue', () => {
       JobQueue.update(jobId, {
         status: 'completed',
         progress: 100,
-        resultUrl: '/temp/output.pdf'
+        filename: 'output.pdf'
       });
       updated = JobQueue.get(jobId);
       expect(updated?.status).toBe('completed');
       expect(updated?.progress).toBe(100);
-      expect(updated?.resultUrl).toBe('/temp/output.pdf');
+      expect(updated?.filename).toBe('output.pdf');
     });
 
     it('should handle failure in job lifecycle: pending → processing → failed', () => {
