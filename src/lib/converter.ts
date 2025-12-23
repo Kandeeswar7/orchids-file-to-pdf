@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import puppeteer from 'puppeteer';
+
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
 
@@ -26,22 +26,27 @@ let browserInstance: any = null;
 
 async function getBrowser() {
   if (!browserInstance) {
-    if (process.env.NODE_ENV === 'production') {
+    const isProd = process.env.NETLIFY === 'true' || process.env.NODE_ENV === 'production';
+
+    if (isProd) {
       console.log('[Converter] Launching Serverless Puppeteer...');
       
       // Configuration for Netlify/AWS Lambda
       const chromiumAny = chromium as any;
-      chromiumAny.setGraphicsMode = false;
+      chromiumAny.setGraphicsMode = false; // Optional, boosts performance
       
       browserInstance = await puppeteerCore.launch({
         args: chromiumAny.args,
         defaultViewport: chromiumAny.defaultViewport,
         executablePath: await chromiumAny.executablePath(),
         headless: chromiumAny.headless,
+
       });
     } else {
       console.log('[Converter] Launching Local Puppeteer...');
-      browserInstance = await puppeteer.launch({
+      // Dynamic import to prevent bundling in production
+      const puppeteer = await import('puppeteer');
+      browserInstance = await puppeteer.default.launch({
         headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
       });
