@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JobQueue } from '@/lib/queue';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 
 export async function GET(
   req: NextRequest,
@@ -22,7 +23,7 @@ export async function GET(
     return NextResponse.json({ error: 'File not ready or conversion failed' }, { status: 404 });
   }
 
-  const filePath = path.join(process.cwd(), 'public', 'temp', job.filename);
+  const filePath = path.join(os.tmpdir(), job.filename);
   console.log(`[Download] Looking for file at: ${filePath}`);
   
   if (!fs.existsSync(filePath)) {

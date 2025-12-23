@@ -2,11 +2,15 @@ import path from 'path';
 import fs from 'fs';
 import puppeteer from 'puppeteer';
 import * as XLSX from 'xlsx';
+import mammoth from 'mammoth';
 
-const TEMP_DIR = path.join(process.cwd(), 'public', 'temp');
-if (!fs.existsSync(TEMP_DIR)) {
-  fs.mkdirSync(TEMP_DIR, { recursive: true });
-}
+import os from 'os';
+
+// Use system temp directory for serverless compatibility
+const TEMP_DIR = os.tmpdir();
+
+// No need to manually create os.tmpdir(), it exists
+
 
 interface ConvertOptions {
   orientation?: 'portrait' | 'landscape';
@@ -14,16 +18,34 @@ interface ConvertOptions {
   gridlines?: boolean;
 }
 
+import puppeteerCore from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
+
 // Singleton browser instance for better performance
 let browserInstance: any = null;
 
 async function getBrowser() {
   if (!browserInstance) {
-    console.log('[Converter] Launching Puppeteer browser...');
-    browserInstance = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-    });
+    if (process.env.NODE_ENV === 'production') {
+      console.log('[Converter] Launching Serverless Puppeteer...');
+      
+      // Configuration for Netlify/AWS Lambda
+      const chromiumAny = chromium as any;
+      chromiumAny.setGraphicsMode = false;
+      
+      browserInstance = await puppeteerCore.launch({
+        args: chromiumAny.args,
+        defaultViewport: chromiumAny.defaultViewport,
+        executablePath: await chromiumAny.executablePath(),
+        headless: chromiumAny.headless,
+      });
+    } else {
+      console.log('[Converter] Launching Local Puppeteer...');
+      browserInstance = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      });
+    }
   }
   return browserInstance;
 }
@@ -203,6 +225,66 @@ export async function convertHtmlToPdf(htmlContent: string, options: ConvertOpti
   } catch (error) {
     console.error('[Converter] HTML conversion error:', error);
     throw new Error(`HTML conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// Convert Word to PDF
+export async function convertWordToPdf(buffer: Buffer, options: ConvertOptions): Promise<string> {
+  console.log('[Converter] Converting Word to PDF...');
+  
+  try {
+    // Convert DOCX to HTML
+    const result = await mammoth.convertToHtml({ buffer });
+    const html = result.value; // The generated HTML
+    const messages = result.messages; // Any messages
+
+    if (messages.length > 0) {
+      console.log('[Converter] Word conversion messages:', messages);
+    }
+
+    // Wrap in standard HTML structure
+     const finalHtml = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { 
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              padding: 40px;
+              line-height: 1.6;
+              color: #333;
+              background: white;
+              max-width: 800px;
+              margin: 0 auto;
+            }
+            h1, h2, h3, h4, h5, h6 { 
+              color: #2c3e50;
+              margin-top: 24px;
+              margin-bottom: 16px;
+            }
+            p { margin-bottom: 12px; }
+            table { 
+              border-collapse: collapse; 
+              width: 100%; 
+              margin: 20px 0;
+            }
+            td, th { 
+              border: 1px solid #ddd; 
+              padding: 8px; 
+            }
+            img { max-width: 100%; height: auto; }
+            ul, ol { margin-bottom: 16px; padding-left: 24px; }
+          </style>
+        </head>
+        <body>${html}</body>
+      </html>
+    `;
+
+    return await generatePdfFromHtml(finalHtml, options);
+  } catch (error) {
+    console.error('[Converter] Word conversion error:', error);
+    throw new Error(`Word conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

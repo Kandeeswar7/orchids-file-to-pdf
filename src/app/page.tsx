@@ -1,14 +1,14 @@
-'use client';
+"use client";
 
-import { ConversionCard } from '@/components/ConversionCard';
-import { motion } from 'framer-motion';
-import { FileText, Zap, Shield } from 'lucide-react';
+import { ConversionCard } from "@/components/ConversionCard";
+import { motion } from "framer-motion";
+import { FileText, Zap, Shield } from "lucide-react";
 
 export default function Home() {
   return (
     <main className="min-h-screen w-full bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden">
       {/* Animated Background Gradients */}
-      <motion.div 
+      <motion.div
         className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-purple-600/20 rounded-full blur-[140px] pointer-events-none"
         animate={{
           scale: [1, 1.2, 1],
@@ -17,10 +17,10 @@ export default function Home() {
         transition={{
           duration: 8,
           repeat: Infinity,
-          ease: "easeInOut"
+          ease: "easeInOut",
         }}
       />
-      <motion.div 
+      <motion.div
         className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-blue-600/20 rounded-full blur-[140px] pointer-events-none"
         animate={{
           scale: [1.2, 1, 1.2],
@@ -30,16 +30,16 @@ export default function Home() {
           duration: 8,
           repeat: Infinity,
           ease: "easeInOut",
-          delay: 1
+          delay: 1,
         }}
       />
-      
+
       {/* Subtle Grid Pattern */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:50px_50px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,black,transparent)] pointer-events-none" />
-      
+
       <div className="z-10 w-full max-w-5xl flex flex-col items-center gap-12 sm:gap-16">
         {/* Hero Section with Motion */}
-        <motion.div 
+        <motion.div
           className="text-center space-y-6 max-w-3xl"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -57,26 +57,27 @@ export default function Home() {
           </motion.div>
 
           {/* Main Heading */}
-          <motion.h1 
-            className="text-5xl sm:text-6xl md:text-7xl font-bold tracking-tight"
+          <motion.h1
+            className="text-4xl sm:text-5xl md:text-7xl font-bold tracking-tight"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.6 }}
           >
-            <span className="gradient-text-brand">
-              File to PDF
-            </span>
+            <span className="gradient-text-brand">File to PDF</span>
           </motion.h1>
-          
+
           {/* Subheading */}
-          <motion.p 
+          <motion.p
             className="text-gray-400 text-lg sm:text-xl max-w-2xl mx-auto leading-relaxed"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.6 }}
           >
-            Professional document conversion that works <strong className="text-white font-semibold">entirely offline</strong>. 
-            No cloud uploads. No privacy concerns. Complete control.
+            Professional document conversion that works{" "}
+            <strong className="text-white font-semibold">
+              entirely offline
+            </strong>
+            . No cloud uploads. No privacy concerns. Complete control.
           </motion.p>
 
           {/* Feature Pills */}
@@ -87,14 +88,29 @@ export default function Home() {
             transition={{ delay: 0.5, duration: 0.6 }}
           >
             {[
-              { icon: Shield, text: 'Private & Secure', color: 'text-green-400' },
-              { icon: Zap, text: 'Instant Conversion', color: 'text-yellow-400' },
-              { icon: FileText, text: 'Multiple Formats', color: 'text-blue-400' },
+              {
+                icon: Shield,
+                text: "Private & Secure",
+                color: "text-green-400",
+              },
+              {
+                icon: Zap,
+                text: "Instant Conversion",
+                color: "text-yellow-400",
+              },
+              {
+                icon: FileText,
+                text: "Multiple Formats",
+                color: "text-blue-400",
+              },
             ].map((feature, index) => (
               <motion.div
                 key={feature.text}
                 className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 border border-white/10"
-                whileHover={{ scale: 1.05, backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
+                whileHover={{
+                  scale: 1.05,
+                  backgroundColor: "rgba(255, 255, 255, 0.08)",
+                }}
                 transition={{ type: "spring", stiffness: 400, damping: 10 }}
               >
                 <feature.icon className={`w-4 h-4 ${feature.color}`} />
