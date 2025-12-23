@@ -58,75 +58,73 @@ export function ConversionCard() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.8, duration: 0.5 }}
       >
-        <ul
-          className="flex p-1.5 glass rounded-2xl shadow-xl min-w-max list-none"
+        <div
+          className="flex p-1.5 glass rounded-2xl shadow-xl min-w-max"
           role="tablist"
           aria-label="Conversion types"
         >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
-              <li key={tab.id} role="presentation" className="contents">
-                <motion.button
-                  onClick={() => setActiveTab(tab.id)}
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-controls={`panel-${tab.id}`}
+              <motion.button
+                key={tab.id}
+                id={`tab-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`panel-${tab.id}`}
+                className={cn(
+                  "relative flex items-center gap-2.5 px-4 sm:px-8 py-3 rounded-xl text-sm font-semibold transition-all duration-300 focus-ring",
+                  isActive ? "text-white" : "text-gray-400 hover:text-gray-200"
+                )}
+                whileHover={{ scale: isActive ? 1 : 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="activeTabBackground"
+                    className={cn(
+                      "absolute inset-0 rounded-xl shadow-lg",
+                      "bg-gradient-to-br",
+                      tab.gradientFrom,
+                      tab.gradientTo
+                    )}
+                    initial={false}
+                    transition={{
+                      type: "spring",
+                      bounce: 0.2,
+                      duration: 0.6,
+                    }}
+                  />
+                )}
+                <tab.icon
                   className={cn(
-                    "relative flex items-center gap-2.5 px-4 sm:px-8 py-3 rounded-xl text-sm font-semibold transition-all duration-300 focus-ring",
-                    isActive
-                      ? "text-white"
-                      : "text-gray-400 hover:text-gray-200"
+                    "w-4 h-4 z-10 transition-all duration-300",
+                    isActive ? "scale-110" : ""
                   )}
-                  whileHover={{ scale: isActive ? 1 : 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTabBackground"
+                />
+                <span className="z-10">{tab.label}</span>
+
+                {isActive && (
+                  <motion.div
+                    className="absolute -inset-1 bg-gradient-to-br opacity-20 rounded-xl blur-md -z-10"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 0.2 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <div
                       className={cn(
-                        "absolute inset-0 rounded-xl shadow-lg",
-                        "bg-gradient-to-br",
+                        "w-full h-full bg-gradient-to-br",
                         tab.gradientFrom,
                         tab.gradientTo
                       )}
-                      initial={false}
-                      transition={{
-                        type: "spring",
-                        bounce: 0.2,
-                        duration: 0.6,
-                      }}
                     />
-                  )}
-                  <tab.icon
-                    className={cn(
-                      "w-4 h-4 z-10 transition-all duration-300",
-                      isActive ? "scale-110" : ""
-                    )}
-                  />
-                  <span className="z-10">{tab.label}</span>
-
-                  {isActive && (
-                    <motion.div
-                      className="absolute -inset-1 bg-gradient-to-br opacity-20 rounded-xl blur-md -z-10"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 0.2 }}
-                      exit={{ opacity: 0 }}
-                    >
-                      <div
-                        className={cn(
-                          "w-full h-full bg-gradient-to-br",
-                          tab.gradientFrom,
-                          tab.gradientTo
-                        )}
-                      />
-                    </motion.div>
-                  )}
-                </motion.button>
-              </li>
+                  </motion.div>
+                )}
+              </motion.button>
             );
           })}
-        </ul>
+        </div>
       </motion.div>
 
       {/* Main Card with Premium Glassmorphism */}
