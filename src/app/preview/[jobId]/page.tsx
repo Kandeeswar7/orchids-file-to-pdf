@@ -115,7 +115,7 @@ export default function PreviewPage({
             transition={{ delay: 0.4 }}
           >
             <Link
-              href="/"
+              href="/convert"
               className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-gray-300 hover:text-white transition-all group"
             >
               <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -218,7 +218,7 @@ export default function PreviewPage({
         transition={{ duration: 0.5 }}
       >
         <Link
-          href="/"
+          href="/convert"
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
         >
           <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />

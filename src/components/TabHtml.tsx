@@ -40,7 +40,7 @@ export function TabHtml() {
       if (subTab === "file" && file) {
         const text = await file.text();
         filename = `converted-${file.name}.pdf`;
-        response = await fetch("/api/convert/html", {
+        response = await fetch("/api/convert", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -50,7 +50,7 @@ export function TabHtml() {
           }),
         });
       } else if (subTab === "code" && code) {
-        response = await fetch("/api/convert/html", {
+        response = await fetch("/api/convert", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -66,21 +66,35 @@ export function TabHtml() {
       }
 
       if (response) {
-        // Check for PDF content type
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/pdf")) {
-          throw new Error("Invalid response format");
-        }
+        // 1. Get Job ID
+        const { jobId } = await response.json();
 
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const jobId = response.headers.get("X-Job-Id") || crypto.randomUUID();
+        // 2. Poll for Status
+        const checkStatus = async () => {
+          const statusRes = await fetch(`/api/convert/status/${jobId}`);
+          const statusData = await statusRes.json();
 
-        // Store result in client-side store
-        const { JobStore } = await import("@/lib/job-store");
-        JobStore.set(jobId, blobUrl, filename);
+          if (statusData.state === "completed") {
+            // 3. Download
+            const downloadUrl = `/api/convert/download/${jobId}`;
 
-        router.push(`/preview/${jobId}`);
+            const fileRes = await fetch(downloadUrl);
+            const blob = await fileRes.blob();
+            const blobUrl = URL.createObjectURL(blob);
+
+            const { JobStore } = await import("@/lib/job-store");
+            JobStore.set(jobId, blobUrl, filename);
+
+            router.push(`/preview/${jobId}`);
+            return;
+          } else if (statusData.state === "failed") {
+            throw new Error("Conversion failed in worker");
+          } else {
+            setTimeout(checkStatus, 1000);
+          }
+        };
+
+        await checkStatus();
       }
     } catch (error: any) {
       console.error("Error converting HTML:", error);

@@ -43,7 +43,7 @@ export function TabExcel() {
       formData.append("orientation", options.orientation);
       formData.append("gridlines", options.gridlines.toString());
 
-      const res = await fetch("/api/convert/excel", {
+      const res = await fetch("/api/convert", {
         method: "POST",
         body: formData,
       });
@@ -53,21 +53,36 @@ export function TabExcel() {
         throw new Error(data.error || "Conversion failed");
       }
 
-      // Check for PDF content type
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/pdf")) {
-        throw new Error("Invalid response format");
-      }
+      // 1. Get Job ID
+      const { jobId } = await res.json();
 
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const jobId = res.headers.get("X-Job-Id") || crypto.randomUUID();
+      // 2. Poll for Status
+      const checkStatus = async () => {
+        const statusRes = await fetch(`/api/convert/status/${jobId}`);
+        const statusData = await statusRes.json();
 
-      // Store result in client-side store
-      const { JobStore } = await import("@/lib/job-store");
-      JobStore.set(jobId, blobUrl, `converted-${file.name}.pdf`);
+        if (statusData.state === "completed") {
+          // 3. Download
+          const downloadUrl = `/api/convert/download/${jobId}`;
 
-      router.push(`/preview/${jobId}`);
+          const fileRes = await fetch(downloadUrl);
+          const blob = await fileRes.blob();
+          const blobUrl = URL.createObjectURL(blob);
+
+          const { JobStore } = await import("@/lib/job-store");
+          JobStore.set(jobId, blobUrl, `converted-${file.name}.pdf`);
+
+          router.push(`/preview/${jobId}`);
+          setLoading(false);
+          return;
+        } else if (statusData.state === "failed") {
+          throw new Error("Conversion failed in worker");
+        } else {
+          setTimeout(checkStatus, 1000);
+        }
+      };
+
+      await checkStatus();
     } catch (error: any) {
       console.error("Conversion failed:", error);
       alert(`Conversion failed: ${error.message || "Please try again."}`);

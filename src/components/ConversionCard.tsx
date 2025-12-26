@@ -60,7 +60,7 @@ export function ConversionCard() {
       >
         <div
           className="flex p-1.5 glass rounded-2xl shadow-xl min-w-max"
-          role="tablist"
+          // Removed role="tablist" to avoid ARIA errors with Framer Motion children
           aria-label="Conversion types"
         >
           {tabs.map((tab) => {
@@ -68,7 +68,7 @@ export function ConversionCard() {
             return (
               <motion.button
                 key={tab.id}
-                role="tab"
+                // Removed role="tab"
                 id={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 aria-selected={isActive}

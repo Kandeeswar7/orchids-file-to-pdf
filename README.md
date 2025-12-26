@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Orchids File to PDF Converter
 
-## Getting Started
+## 🚀 Setup & Installation
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+1. **Node.js**: v18+
+2. **Redis**: Must be running locally (default: `localhost:6379`) or provide `REDIS_URL`.
+3. **Firebase**:
+   - Create a project at [console.firebase.google.com](https://console.firebase.google.com)
+   - Enable **Authentication** (Email/Password, Google).
+   - Enable **Firestore Database**.
+   - Get Client Config -> `.env.local`
+   - Get Service Account Key -> `.env.local` (for Admin SDK).
+
+### Environment Variables
+
+Create `.env.local`:
+
+```env
+NEXT_PUBLIC_FIREBASE_API_KEY=...
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=...
+...
+FIREBASE_SERVICE_ACCOUNT_KEY={"type": "service_account", ...} (One line JSON)
+REDIS_URL=redis://localhost:6379
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 🏃‍♂️ Running the App
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The app now consists of a Frontend/API and a Background Worker.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Run All (Recommended):**
 
-## Learn More
+```bash
+npm run dev:all
+```
 
-To learn more about Next.js, take a look at the following resources:
+_This starts Next.js on port 3000 AND the conversion worker concurrently._
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Run Separately:**
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Terminal 1: `npm run dev`
+- Terminal 2: `npm run worker`
 
-## Deploy on Vercel
+## 🏗 Architecture
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Frontend**: Next.js App Router (Glassmorphism UI).
+- **Auth**: Firebase Auth + Context.
+- **Queue**: BullMQ (Redis).
+- **Worker**: Separate process handling heavy conversions (`src/worker.ts`).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).

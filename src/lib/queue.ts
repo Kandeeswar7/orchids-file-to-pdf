@@ -1,28 +1,27 @@
-import { ConversionJob } from './types';
+import { Queue } from 'bullmq';
+import IORedis from 'ioredis';
 
-// In-memory store for jobs
-// Note: In a production serverless environment, this should be Redis or a database.
-const jobs = new Map<string, ConversionJob>();
+// Connection string or default to local
+const connection = new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
+    maxRetriesPerRequest: null // Required by BullMQ
+});
+
+export const conversionQueue = new Queue('conversion-queue', {
+  connection
+});
 
 export const JobQueue = {
-  create: (job: ConversionJob) => {
-    jobs.set(job.id, job);
-    return job;
+  add: async (jobData: any, priority: number = 0, jobId?: string) => {
+    // Priority: Higher number = Higher priority
+    return await conversionQueue.add('convert-job', jobData, {
+      jobId, // Use the provided UUID
+      priority,
+      removeOnComplete: { count: 100 }, // Keep last 100
+      removeOnFail: { count: 100 }
+    });
   },
-
-  get: (id: string) => {
-    return jobs.get(id);
-  },
-
-  update: (id: string, updates: Partial<ConversionJob>) => {
-    const job = jobs.get(id);
-    if (!job) return null;
-    const updatedJob = { ...job, ...updates };
-    jobs.set(id, updatedJob);
-    return updatedJob;
-  },
-
-  list: () => {
-    return Array.from(jobs.values());
+  
+  get: async (jobId: string) => {
+    return await conversionQueue.getJob(jobId);
   }
 };

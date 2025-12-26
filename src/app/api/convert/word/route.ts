@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { convertWordToPdf } from '@/lib/converter';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { JobQueue } from '@/lib/queue';
+import { assertUserCanConvert } from '@/lib/firestore/users';
+import { adminAuth } from '@/lib/firebase/admin';
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,43 +10,82 @@ export async function POST(req: NextRequest) {
     const orientation = formData.get('orientation') as 'portrait' | 'landscape';
     const paperSize = formData.get('paperSize') as 'A4' | 'Letter';
     
-    // Support doc/docx (though mammoth mainly does docx, we'll try)
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
+    // 1. Auth & Usage Check
+    const authHeader = req.headers.get('Authorization');
+    let uid = '';
+    let plan = 'free'; 
+    let email = '';
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split('Bearer ')[1];
+        try {
+            const decodedToken = await adminAuth.verifyIdToken(token);
+            uid = decodedToken.uid;
+            email = decodedToken.email || '';
+        } catch (e) {
+             console.warn("Invalid Token:", e);
+             // STRICT RULE: If header exists but invalid -> Reject
+             return NextResponse.json({ error: 'Invalid Authentication Token' }, { status: 401 });
+        }
+    }
+
+    // Call strict assertion logic
+    // Guests (no uid) might be allowed with limited features or blocked depending on policy.
+    // Plan says "Guest users can convert (limited)".
+    // assertUserCanConvert handles empty uid by returning "guest" plan and maybe false allowed if we want to block.
+    // Let's modify assertUserCanConvert to handle guest logic if we desire, OR handle it here.
+    // For now, if no UID, we treat as guest.
+    
+    if (uid) {
+        const check = await assertUserCanConvert(uid, email);
+        if (!check.allowed) {
+            return NextResponse.json({ error: check.reason }, { status: 403 });
+        }
+        plan = check.plan;
+    } else {
+        // Guest Logic (Limit by IP not possible easily without storage/cache, so just allow for now or strict block?)
+        // User request says: "Guest users can convert (limited)"
+        // We'll tag as 'guest' plan.
+        plan = 'guest';
+    }
+
+    // 2. Prepare Job Data
+    // We need to pass the file content. 
+    // WARNING: Passing large buffers to Redis is bad practice. 
+    // Ideally, upload to Storage (Firebase/S3) and pass URL.
+    // For this "Offline/Local-ish" task without bucket, we might store to temp disk and pass PATH,
+    // assuming Worker and API share filesystem (Local dev / container).
+    // If separate machines, Redis is the only bridge, so Buffer encoded as Base64 is necessary (but limits size).
+    
     const buffer = Buffer.from(await file.arrayBuffer());
+    
+    // Convert to base64 for Redis safety (simpler than file sharing for now)
+    const fileBase64 = buffer.toString('base64');
+    
     const jobId = crypto.randomUUID();
+    const priority = plan === 'premium' ? 100 : 10;
 
-    console.log(`[Word] Job created: ${jobId}, file: ${file.name}, size: ${buffer.length} bytes`);
+    console.log(`[API] Enqueuing Job ${jobId} for User ${uid || 'Guest'} (Plan: ${plan})`);
 
-    // Synchronous processing
-    console.log(`[Word] Starting conversion for job ${jobId}`);
-    const filename = await convertWordToPdf(buffer, { orientation, paperSize });
-    console.log(`[Word] Conversion completed for job ${jobId}, filename: ${filename}`);
+    await JobQueue.add({
+        jobId,
+        type: 'word',
+        fileContent: fileBase64, // Pass Data
+        fileName: file.name,
+        options: { orientation, paperSize },
+        uid,
+        plan
+    }, priority);
 
-    const filePath = path.join(os.tmpdir(), filename);
-    
-    if (!fs.existsSync(filePath)) {
-       throw new Error("Generated PDF file not found");
-    }
-
-    const fileBuffer = fs.readFileSync(filePath);
-    
-    // Clean up temp file immediately since we're serving it now
-    try {
-        fs.unlinkSync(filePath);
-    } catch (e) {
-        console.warn("Failed to cleanup temp file", e);
-    }
-
-    // Return the PDF file directly
-    return new NextResponse(fileBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="converted.pdf"`,
-        'X-Job-Id': jobId // Send Job ID in header for tracking if needed
-      }
+    // 3. Return Job ID immediately
+    return NextResponse.json({ 
+        jobId, 
+        status: 'queued', 
+        message: 'Conversion started' 
     });
 
   } catch (error: any) {

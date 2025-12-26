@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { convertHtmlToPdf } from '@/lib/converter';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import { JobQueue } from '@/lib/queue';
+import { assertUserCanConvert } from '@/lib/firestore/users';
+import { adminAuth } from '@/lib/firebase/admin';
 
 export async function POST(req: NextRequest) {
   try {
     const contentType = req.headers.get('content-type') || '';
-    
     let htmlContent = '';
-    let jobId = crypto.randomUUID();
     let originalName = 'document.html';
 
     if (contentType.includes('multipart/form-data')) {
@@ -29,34 +26,58 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No HTML content provided' }, { status: 400 });
     }
 
-    console.log(`[HTML] Job created: ${jobId}, source: ${originalName}, length: ${htmlContent.length} chars`);
+    // 1. Auth & Usage Check
+    const authHeader = req.headers.get('Authorization');
+    let uid = '';
+    let plan = 'free'; 
+    let email = '';
 
-    // Synchronous processing
-    console.log(`[HTML] Starting conversion for job ${jobId}`);
-    const filename = await convertHtmlToPdf(htmlContent, { orientation: 'portrait' });
-    console.log(`[HTML] Conversion completed for job ${jobId}, filename: ${filename}`);
-
-    const filePath = path.join(os.tmpdir(), filename);
-
-    if (!fs.existsSync(filePath)) {
-       throw new Error("Generated PDF file not found");
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split('Bearer ')[1];
+        try {
+            const decodedToken = await adminAuth.verifyIdToken(token);
+            uid = decodedToken.uid;
+            email = decodedToken.email || '';
+        } catch (e) {
+             console.warn("Invalid Token:", e);
+             return NextResponse.json({ error: 'Invalid Authentication Token' }, { status: 401 });
+        }
     }
 
-    const fileBuffer = fs.readFileSync(filePath);
+    if (uid) {
+        const check = await assertUserCanConvert(uid, email);
+        if (!check.allowed) {
+            return NextResponse.json({ error: check.reason }, { status: 403 });
+        }
+        plan = check.plan;
+    } else {
+        plan = 'guest';
+    }
+
+    // 2. Enqueue Job
+    const jobId = crypto.randomUUID();
+    const priority = plan === 'premium' ? 100 : 10;
     
-    // Clean up temp file
-    try {
-        fs.unlinkSync(filePath);
-    } catch (e) {
-        console.warn("Failed to cleanup temp file", e);
-    }
+    // Encode HTML string to base64 to pass safely through Queue
+    const fileBase64 = Buffer.from(htmlContent).toString('base64');
 
-    return new NextResponse(fileBuffer, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="document.pdf"`,
-        'X-Job-Id': jobId
-      }
+    console.log(`[HTML] Enqueuing Job ${jobId} for User ${uid || 'Guest'} (Plan: ${plan})`);
+
+    await JobQueue.add({
+        jobId,
+        type: 'html',
+        fileContent: fileBase64,
+        fileName: originalName,
+        options: { orientation: 'portrait' }, // Default for HTML
+        uid,
+        plan
+    }, priority);
+
+    // 3. Return Job ID
+    return NextResponse.json({ 
+        jobId, 
+        status: 'queued', 
+        message: 'Conversion started' 
     });
 
   } catch (error: any) {

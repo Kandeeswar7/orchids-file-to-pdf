@@ -38,12 +38,17 @@ export function TabWord() {
     setLoading(true);
 
     try {
+      const { useAuth } = await import("@/context/AuthContext"); // Dynamic import to avoid SSR issues if used directly
+      // Or just get token if we had hook available.
+      // Ideally pass token in header. For now, guest mode is default if no header.
+
+      // 1. Submit Job
       const formData = new FormData();
       formData.append("file", file);
       formData.append("orientation", options.orientation);
       formData.append("pageSize", options.pageSize);
 
-      const res = await fetch("/api/convert/word", {
+      const res = await fetch("/api/convert", {
         method: "POST",
         body: formData,
       });
@@ -53,22 +58,49 @@ export function TabWord() {
         throw new Error(data.error || "Conversion failed");
       }
 
-      // Check for PDF content type
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/pdf")) {
-        throw new Error("Invalid response format");
-      }
+      const { jobId } = await res.json();
 
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const jobId = res.headers.get("X-Job-Id") || crypto.randomUUID();
+      // 2. Poll for Status
+      const checkStatus = async () => {
+        const statusRes = await fetch(`/api/convert/status/${jobId}`);
+        const statusData = await statusRes.json();
 
-      // Store result in client-side store
-      // We need to dynamically import JobStore or ensure it's client-safe (it is)
-      const { JobStore } = await import("@/lib/job-store");
-      JobStore.set(jobId, blobUrl, `converted-${file.name}.pdf`);
+        if (statusData.state === "completed") {
+          // 3. Download
+          // We use the download API we just made
+          // Or use the 'result' from job if it contains url (it does in our worker: downloadUrl)
+          const downloadUrl =
+            statusData.result?.downloadUrl || `/api/convert/download/${jobId}`;
 
-      router.push(`/preview/${jobId}`);
+          // Fetch as blob to trigger download or use router push to preview page?
+          // Existing flow used router.push(`/preview/${jobId}`)
+          // We should keep that flow if possible.
+          // But we need the BLOB URL for the preview page to work offline-ish?
+          // Actually, the preview page needs to load the PDF.
+          // If we push to /preview/jobId, that page needs to know how to load the PDF.
+          // Let's download the blob here to be safe and store in JobStore,
+          // OR update Preview Page to fetch from download API.
+          // Updating Preview Page is cleaner for "Refresh" but JobStore is "Offline" style.
+          // Let's stick to JobStore for now to minimize changes to Preview Page.
+
+          const fileRes = await fetch(downloadUrl);
+          const blob = await fileRes.blob();
+          const blobUrl = URL.createObjectURL(blob);
+
+          const { JobStore } = await import("@/lib/job-store");
+          JobStore.set(jobId, blobUrl, `converted-${file.name}.pdf`);
+
+          router.push(`/preview/${jobId}`);
+          setLoading(false);
+          return;
+        } else if (statusData.state === "failed") {
+          throw new Error("Conversion failed in worker");
+        } else {
+          setTimeout(checkStatus, 1000);
+        }
+      };
+
+      await checkStatus();
     } catch (error: any) {
       console.error("Conversion failed:", error);
       alert(`Conversion failed: ${error.message || "Please try again."}`);

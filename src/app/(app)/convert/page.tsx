@@ -4,7 +4,7 @@ import { ConversionCard } from "@/components/ConversionCard";
 import { motion } from "framer-motion";
 import { FileText, Zap, Shield } from "lucide-react";
 
-export default function Home() {
+export default function ConvertPage() {
   return (
     <main className="min-h-screen w-full bg-[#0a0a0a] text-white flex flex-col items-center justify-center p-4 sm:p-8 relative overflow-hidden">
       {/* Animated Background Gradients */}
