@@ -1,13 +1,18 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+
 import {
   User,
   onAuthStateChanged,
   signOut as firebaseSignOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  updateProfile,
 } from "firebase/auth";
 import { auth, db } from "@/lib/firebase/client";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 import { signInWithGoogle } from "@/lib/auth/googleSignIn";
 
 interface AuthContextType {
@@ -15,8 +20,11 @@ interface AuthContextType {
   loading: boolean;
   plan: "free" | "premium";
   signInWithGoogle: () => Promise<void | User>;
+  signUpWithEmail: (email: string, pass: string, name: string) => Promise<User>;
+  signInWithEmail: (email: string, pass: string) => Promise<User>;
   signOut: () => Promise<void>;
   getToken: () => Promise<string | null>;
+  sendVerificationEmail: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -24,8 +32,15 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   plan: "free",
   signInWithGoogle: async () => {},
+  signUpWithEmail: async () => {
+    throw new Error("Not implemented");
+  },
+  signInWithEmail: async () => {
+    throw new Error("Not implemented");
+  },
   signOut: async () => {},
   getToken: async () => null,
+  sendVerificationEmail: async () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -73,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         displayName: "Demo User",
         photoURL: null,
         getIdToken: async () => "mock-token",
+        emailVerified: true, // Google users are verified
       };
       setUser(mockUser);
       setPlan("free");
@@ -83,14 +99,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await signInWithGoogle();
   };
 
+  const handleSignUpWithEmail = async (
+    email: string,
+    pass: string,
+    name: string
+  ) => {
+    if (!auth) throw new Error("Auth not initialized (Check env vars)");
+
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      email,
+      pass
+    );
+    await updateProfile(userCredential.user, { displayName: name });
+
+    // SEND VERIFICATION EMAIL IMMEDIATELY
+    try {
+      await sendEmailVerification(userCredential.user);
+    } catch (e) {
+      console.error("Failed to send verification email during signup:", e);
+    }
+
+    // Create user doc
+    if (db) {
+      await setDoc(doc(db, "users", userCredential.user.uid), {
+        email,
+        displayName: name,
+        plan: "free",
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    return userCredential.user;
+  };
+
+  const handleSignInWithEmail = async (email: string, pass: string) => {
+    if (!auth) throw new Error("Auth not initialized");
+    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+    return userCredential.user;
+  };
+
   const handleSignOut = async () => {
     if (!auth) {
       // Demo Mode Logout
       setUser(null);
       setPlan("free");
+      window.location.href = "/"; // Force redirect
       return;
     }
-    await firebaseSignOut(auth);
+    try {
+      await firebaseSignOut(auth);
+      // Hard redirect to clear any in-memory state
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("SignOut Error:", error);
+      // Force logout anyway
+      window.location.href = "/login";
+    }
+  };
+
+  const handleSendVerificationEmail = async () => {
+    if (!auth || !auth.currentUser)
+      throw new Error("No user logged in to send verification email to.");
+    await sendEmailVerification(auth.currentUser);
   };
 
   const getToken = async () => {
@@ -105,8 +176,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         plan,
         signInWithGoogle: handleSignInWithGoogle,
+        signUpWithEmail: handleSignUpWithEmail,
+        signInWithEmail: handleSignInWithEmail,
         signOut: handleSignOut,
         getToken,
+        sendVerificationEmail: handleSendVerificationEmail,
       }}
     >
       {children}

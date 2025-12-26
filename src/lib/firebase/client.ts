@@ -21,31 +21,24 @@ let auth: Auth | undefined;
 let db: Firestore | undefined;
 
 if (!firebaseConfig.apiKey) {
-  console.warn("Firebase Config Missing! Check .env.local");
-  // Prevent crash by not initializing or using a dummy? 
-  // initializeApp throws if apiKey is missing. 
-  // We'll export mock objects or nulls? 
-  // But typescript expects them to be defined.
-  // Best bet: Throw a clear error that the UI can catch?
-  // Or just mock them to allow the UI to render the "Login" page (which will fail gracefully).
-  
-  // NOTE: This will still cause issues when hooks try to use 'auth'.
-  // But it prevents the immediate "Application error" white screen.
-  class MockAuth {} 
-  class MockDb {} 
-  
-  // Actually, cleanest way is to just throw a descriptive error that we can catch or see in logs.
-  // But Next.js client exceptions are ugly.
-  // Let's rely on the user fixing the env.
-  // However, to fix the "Application error":
-  
-  // Mock items to allow app to hydrate
-  const mockApp: any = { name: "mock" };
-  // auth and db remain undefined
-  app = mockApp;
-  
+  if (typeof window !== "undefined") {
+    console.error(
+      "Firebase keys are missing in .env.local. Authentication will not work."
+    );
+  }
+}
+
+// Always try to initialize if we can, or let it fail gracefully
+if (getApps().length === 0) {
+  // We only initialize if we have at least an API key, otherwise it throws immediately
+  if (firebaseConfig.apiKey) {
+    app = initializeApp(firebaseConfig);
+  }
 } else {
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  app = getApps()[0];
+}
+
+if (app) {
   auth = getAuth(app);
   db = getFirestore(app);
 }

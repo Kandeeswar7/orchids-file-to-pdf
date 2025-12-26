@@ -5,35 +5,53 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInWithEmail } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const checkVerification = (user: any) => {
+    if (user && !user.emailVerified) {
+      router.push("/verify-email");
+    } else {
+      router.push("/convert");
+    }
+  };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError("");
     try {
-      // Try actual auth first
-      await signInWithGoogle();
-      router.push("/convert");
+      const user = await signInWithGoogle();
+      if (user) checkVerification(user);
+      else router.push("/convert");
     } catch (err: any) {
       console.error("Auth error:", err);
-      // Fallback for UI Demo if config is missing (common in dev handoffs)
-      if (
-        err.message &&
-        (err.message.includes("config") || err.message.includes("undefined"))
-      ) {
-        console.warn(
-          "Auth failed/missing config. Simulating login for UI demo."
-        );
-        setTimeout(() => router.push("/convert"), 1500);
-      } else {
-        setError(err.message || "Failed to sign in");
-        setLoading(false);
-      }
+      const msg = err.message?.includes("auth/popup-closed-by-user")
+        ? "Sign in cancelled"
+        : "Failed to sign in. Please try again.";
+      setError(msg);
+      setLoading(false);
+    }
+  };
+
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const user = await signInWithEmail(email, password);
+      // Check verification status
+      checkVerification(user);
+    } catch (err: any) {
+      console.error("Login error:", err);
+      setError("Invalid email or password");
+      setLoading(false);
     }
   };
 
@@ -63,17 +81,13 @@ export default function LoginPage() {
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
-          className="mt-8 w-full rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 py-3 text-white font-medium shadow-lg hover:opacity-90 transition flex items-center justify-center gap-2"
+          className="mt-8 w-full rounded-xl bg-white text-black font-semibold py-3 hover:bg-gray-100 transition flex items-center justify-center gap-2"
         >
           {loading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
           ) : (
             <>
-              {/* Google SVG Icon for premium feel */}
-              <svg
-                className="w-5 h-5 bg-white rounded-full p-0.5"
-                viewBox="0 0 24 24"
-              >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                   fill="#4285F4"
@@ -91,13 +105,68 @@ export default function LoginPage() {
                   fill="#EA4335"
                 />
               </svg>
-              Continue with Google
+              <span>Continue with Google</span>
             </>
           )}
         </button>
 
+        <div className="relative flex items-center justify-center my-6">
+          <div className="h-px bg-white/10 w-full"></div>
+          <span className="absolute bg-[#12121a] px-2 text-xs text-gray-500">
+            OR EMAIL
+          </span>
+        </div>
+
+        <form onSubmit={handleEmailLogin} className="space-y-4">
+          <div>
+            <input
+              type="email"
+              placeholder="Email Address"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:border-purple-500 focus:outline-none transition-colors placeholder:text-gray-600"
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              placeholder="Password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-xl py-3 px-4 text-sm text-white focus:border-purple-500 focus:outline-none transition-colors placeholder:text-gray-600"
+            />
+          </div>
+          <div className="flex justify-end">
+            <Link
+              href="/forgot-password"
+              className="text-xs text-gray-400 hover:text-white transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-purple-600 py-3 text-white font-medium hover:bg-purple-500 transition shadow-lg shadow-purple-900/20"
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+            ) : (
+              "Sign In"
+            )}
+          </button>
+        </form>
+
         <p className="mt-6 text-center text-xs text-gray-500">
-          By continuing, you agree to our Terms & Privacy Policy
+          Don't have an account?{" "}
+          <Link
+            href="/signup"
+            className="text-purple-400 hover:text-purple-300"
+          >
+            Sign up
+          </Link>
         </p>
       </motion.div>
     </main>

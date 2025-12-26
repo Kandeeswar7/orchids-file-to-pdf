@@ -9,11 +9,11 @@ import { useAuth } from "@/context/AuthContext";
 
 export default function SignupPage() {
   const router = useRouter();
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signUpWithEmail } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  // Mock Form State
+  // Form State
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -25,27 +25,42 @@ export default function SignupPage() {
     try {
       await signInWithGoogle();
       router.push("/convert");
-    } catch (e) {
-      // Fallback for demo
-      setTimeout(() => router.push("/convert"), 1500);
+    } catch (e: any) {
+      // Typed as any to handle unknow error types safely
+      console.error("Signup error", e);
+      alert(e.message || "Signup failed");
+      setLoading(false);
     }
   };
 
   const nextStep = () => {
+    if (step === 1 && (!formData.name || !formData.email)) {
+      alert("Please fill in all fields");
+      return;
+    }
+    if (step === 2 && !formData.password) {
+      alert("Please enter a password");
+      return;
+    }
+
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
       setStep((s) => s + 1);
-    }, 600);
+    }, 400);
   };
 
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      // Just redirect to login or dashboard for demo
+    try {
+      await signUpWithEmail(formData.email, formData.password, formData.name);
+      // Successful signup automatically logs in
       router.push("/convert");
-    }, 1500);
+    } catch (error: any) {
+      console.error("Registration failed", error);
+      alert(error.message || "Registration failed. Please try again.");
+      setLoading(false);
+    }
   };
 
   return (

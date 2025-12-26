@@ -4,20 +4,29 @@ import { useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Loader2, ArrowLeft, Mail, Check } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [email, setEmail] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { resetPassword } = useAuth();
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate API
-    setTimeout(() => {
-      setLoading(false);
+    setError("");
+    try {
+      await resetPassword(email);
       setSent(true);
-    }, 1500);
+    } catch (e: any) {
+      console.error("Reset failed", e);
+      setError(e.message || "Failed to send reset email");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
