@@ -179,6 +179,7 @@
   /* Glass Morphism */
   .glass {
     background: var(--glass-bg);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--glass-border);
   }

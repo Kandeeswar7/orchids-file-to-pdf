@@ -12,18 +12,6 @@ export default function VerifyEmailPage() {
   const [loading, setLoading] = useState(false);
   const [resendStatus, setResendStatus] = useState("");
 
-  useEffect(() => {
-    // If user becomes verified (e.g. via another tab), redirect
-    const interval = setInterval(() => {
-      user?.reload().then(() => {
-        if (user?.emailVerified) {
-          router.push("/convert");
-        }
-      });
-    }, 5000); // Check every 5s
-    return () => clearInterval(interval);
-  }, [user, router]);
-
   const handleResend = async () => {
     setLoading(true);
     setResendStatus("");
@@ -39,8 +27,31 @@ export default function VerifyEmailPage() {
     }
   };
 
-  const handleRefresh = () => {
-    window.location.reload();
+  /*
+   * CRITICAL FIX:
+   * We MUST call user.reload() because Firebase doesn't auto-update
+   * emailVerified status in the client SDK until token refresh or reload.
+   */
+  const handleRefresh = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      await user.reload();
+      // Force get updated token claim
+      await user.getIdToken(true);
+
+      if (user.emailVerified) {
+        router.push("/convert");
+      } else {
+        // Optional: Show toast "Not verified yet"
+        alert("Email not verified yet. Please check your inbox.");
+      }
+    } catch (e) {
+      console.error("Verification check failed", e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!user) {
@@ -53,24 +64,10 @@ export default function VerifyEmailPage() {
     );
   }
 
-  // If already verified, show success (although AuthGuard should redirect, this is a fallback)
+  // Double check state (optimization)
   if (user.emailVerified) {
-    return (
-      <main className="min-h-screen bg-[#0b0b12] text-white flex items-center justify-center p-4">
-        <div className="w-full max-w-md p-8 rounded-3xl bg-white/5 border border-white/10 text-center">
-          <div className="w-20 h-20 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center mx-auto mb-6">
-            <Check className="w-10 h-10" />
-          </div>
-          <h1 className="text-3xl font-bold mb-3">Email Verified!</h1>
-          <Link
-            href="/convert"
-            className="block w-full py-4 rounded-xl bg-green-600 hover:bg-green-500 text-white font-bold mt-8"
-          >
-            Go to Dashboard
-          </Link>
-        </div>
-      </main>
-    );
+    router.push("/convert");
+    return null;
   }
 
   return (
@@ -93,9 +90,15 @@ export default function VerifyEmailPage() {
         <div className="space-y-3">
           <button
             onClick={handleRefresh}
+            disabled={loading}
             className="w-full py-3 rounded-xl bg-white text-black font-bold hover:bg-gray-200 transition flex items-center justify-center gap-2"
           >
-            <RefreshCw className="w-4 h-4" /> I've Verified It
+            {loading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+            I've Verified It
           </button>
 
           <button

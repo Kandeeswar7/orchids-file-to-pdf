@@ -59,6 +59,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
 
+      // FIRESTORE DISABLED: To prevent "Missing or insufficient permissions" errors.
+      // We are strictly using Auth for identity. Plans are default "free" for now.
+      /*
       if (currentUser && db) {
         try {
           const userDoc = await getDoc(doc(db, "users", currentUser.uid));
@@ -68,9 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } catch (error) {
           console.error("Failed to fetch user plan:", error);
         }
-      } else {
-        setPlan("free");
-      }
+      } 
+      */
+      setPlan("free");
 
       setLoading(false);
     });
@@ -121,6 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Create user doc
+    // FIRESTORE DISABLED: To prevent permission errors.
+    /*
     if (db) {
       await setDoc(doc(db, "users", userCredential.user.uid), {
         email,
@@ -129,6 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         createdAt: new Date().toISOString(),
       });
     }
+    */
 
     return userCredential.user;
   };

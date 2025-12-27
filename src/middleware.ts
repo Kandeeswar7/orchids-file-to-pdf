@@ -16,8 +16,12 @@ export function middleware(request: NextRequest) {
   
   // However, we can enforce:
   // If user goes to / (Landing), let them see it.
+
+  // FIX: Cross-Origin-Opener-Policy error during Google Sign-In
+  const response = NextResponse.next();
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
   
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

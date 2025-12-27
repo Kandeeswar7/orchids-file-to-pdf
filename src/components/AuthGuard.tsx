@@ -14,10 +14,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!loading) {
       if (!user) {
         router.push("/login");
-      } else if (!user.emailVerified) {
-        router.push("/verify-email");
       } else {
-        setIsChecking(false);
+        // GOOGLE BYPASS RULE:
+        // Google users have providerId = 'google.com' in providerData.
+        // We always treat them as verified.
+        const isGoogle = user.providerData.some(
+          (p) => p.providerId === "google.com"
+        );
+
+        if (!user.emailVerified && !isGoogle) {
+          router.push("/verify-email");
+        } else {
+          setIsChecking(false);
+        }
       }
     }
   }, [user, loading, router]);
