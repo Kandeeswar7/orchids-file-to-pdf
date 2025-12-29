@@ -7,17 +7,23 @@ import os from 'os';
 const TEMP_ROOT = path.join(os.tmpdir(), 'converty-work');
 
 // Ensure it exists on import (or startup)
-if (!fs.existsSync(TEMP_ROOT)) {
-    try {
-        fs.mkdirSync(TEMP_ROOT, { recursive: true });
-        console.log(`[Storage] Created temp root at ${TEMP_ROOT}`);
-    } catch (e) {
-        console.error(`[Storage] Failed to create temp root at ${TEMP_ROOT}`, e);
+// lazy init check
+function ensureTempRoot() {
+    if (!fs.existsSync(TEMP_ROOT)) {
+        try {
+            fs.mkdirSync(TEMP_ROOT, { recursive: true });
+            console.log(`[Storage] Created temp root at ${TEMP_ROOT}`);
+        } catch (e) {
+            console.error(`[Storage] Failed to create temp root at ${TEMP_ROOT}`, e);
+        }
     }
 }
 
 export const Storage = { 
-  getRootDir: () => TEMP_ROOT,
+  getRootDir: () => {
+      ensureTempRoot();
+      return TEMP_ROOT;
+  },
 
   getInputPath: (jobId: string, ext: string) => {
       // ext should include dot, e.g. .docx

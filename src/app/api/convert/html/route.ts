@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JobQueue } from '@/lib/queue';
-import { assertUserCanConvert } from '@/lib/firestore/users';
-import { adminAuth } from '@/lib/firebase/admin';
+// DELETED: import { assertUserCanConvert } from '@/lib/firestore/users';
+// DELETED: import { adminAuth } from '@/lib/firebase/admin';
+import { Storage } from '@/lib/storage';
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,52 +27,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No HTML content provided' }, { status: 400 });
     }
 
-    // 1. Auth & Usage Check
-    const authHeader = req.headers.get('Authorization');
+    // 1. Auth & Usage Check REMOVED
     let uid = '';
     let plan = 'free'; 
     let email = '';
-
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.split('Bearer ')[1];
-        try {
-            const decodedToken = await adminAuth.verifyIdToken(token);
-            uid = decodedToken.uid;
-            email = decodedToken.email || '';
-        } catch (e) {
-             console.warn("Invalid Token:", e);
-             return NextResponse.json({ error: 'Invalid Authentication Token' }, { status: 401 });
-        }
-    }
-
-    if (uid) {
-        const check = await assertUserCanConvert(uid, email);
-        if (!check.allowed) {
-            return NextResponse.json({ error: check.reason }, { status: 403 });
-        }
-        plan = check.plan;
-    } else {
-        plan = 'guest';
-    }
 
     // 2. Enqueue Job
     const jobId = crypto.randomUUID();
     const priority = plan === 'premium' ? 100 : 10;
     
-    // Encode HTML string to base64 to pass safely through Queue
-    const fileBase64 = Buffer.from(htmlContent).toString('base64');
+    // SAVE TO SAFE TEMP DIR
+    const buffer = Buffer.from(htmlContent, 'utf-8');
+    const inputPath = await Storage.saveInput(jobId, buffer, originalName);
+    const outputPath = Storage.getOutputPath(jobId);
 
     console.log(`[HTML] Enqueuing Job ${jobId} for User ${uid || 'Guest'} (Plan: ${plan})`);
 
     await JobQueue.add({
         jobId,
         type: 'html',
-        fileContent: fileBase64,
+        inputPath,
+        outputPath,
         fileName: originalName,
-        options: { orientation: 'portrait' }, // Default for HTML
+        options: { orientation: 'portrait' },
         uid,
         plan
-    }, priority);
+    }, priority, jobId);
 
     // 3. Return Job ID
     return NextResponse.json({ 

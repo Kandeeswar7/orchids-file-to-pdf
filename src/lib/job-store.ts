@@ -1,3 +1,8 @@
+/**
+ * DO NOT ADD FIREBASE OR AUTH LOGIC HERE
+ * This file must remain stateless and permission-agnostic.
+ * It strictly handles local in-memory job referencing.
+ */
 export interface JobResult {
   id: string;
   blobUrl: string;

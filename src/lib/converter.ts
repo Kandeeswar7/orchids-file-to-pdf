@@ -1,3 +1,7 @@
+/**
+ * DO NOT ADD FIREBASE OR AUTH LOGIC HERE
+ * This core conversion logic must remain isolated.
+ */
 import path from 'path';
 import fs from 'fs';
 import * as XLSX from 'xlsx';
@@ -5,9 +9,10 @@ import mammoth from 'mammoth';
 import os from 'os';
 import { getBrowser } from './browser';
 import { PRINT_STYLES, EXCEL_STYLES } from './css-template';
+import { Storage } from './storage';
 
-// Use system temp directory for serverless compatibility
-const TEMP_DIR = os.tmpdir();
+// Use restricted temp directory
+const TEMP_DIR = Storage.getRootDir();
 
 interface ConvertOptions {
   orientation?: 'portrait' | 'landscape';

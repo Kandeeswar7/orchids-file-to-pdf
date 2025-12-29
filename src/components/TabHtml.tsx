@@ -10,50 +10,107 @@ import {
   Loader2,
   FileType,
   Sparkles,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { PLAN_LIMITS } from "@/config/plans";
+import { LimitModal } from "./LimitModal";
 
 type SubTab = "file" | "code";
 
 export function TabHtml() {
+  const { user, plan, dailyUsage, recordConversion } = useAuth();
   const [subTab, setSubTab] = useState<SubTab>("file");
   const [file, setFile] = useState<File | null>(null);
   const [code, setCode] = useState("");
   const [isConverting, setIsConverting] = useState(false);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitMessage, setLimitMessage] = useState("");
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const f = e.target.files[0];
+      if (!f.name.match(/\.(html|htm)$/i)) {
+        alert("Invalid file type. Please upload an HTML file (.html, .htm).");
+        return;
+      }
+      setFile(f);
     }
   };
 
   const handleConvert = async () => {
+    // 1. LIMIT CHECKS
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+
+    // Check Daily Usage
+    if (dailyUsage >= limits.maxDailyConversions) {
+      setLimitMessage(
+        `Daily limit reached (${limits.maxDailyConversions}/${limits.maxDailyConversions}).`
+      );
+      setShowLimitModal(true);
+      return;
+    }
+
+    // Check File Size (File Mode)
+    if (subTab === "file" && file) {
+      const sizeMB = file.size / (1024 * 1024);
+      if (sizeMB > limits.maxFileSizeMB) {
+        setLimitMessage(
+          `File too large (${sizeMB.toFixed(1)}MB). Limit is ${
+            limits.maxFileSizeMB
+          }MB.`
+        );
+        setShowLimitModal(true);
+        return;
+      }
+    }
+
+    // Check Code Size (Code Mode) - Approx 1 char = 1 byte
+    if (subTab === "code" && code) {
+      const sizeMB = code.length / (1024 * 1024);
+      if (sizeMB > limits.maxFileSizeMB) {
+        setLimitMessage(
+          `Code content too large (${sizeMB.toFixed(1)}MB). Limit is ${
+            limits.maxFileSizeMB
+          }MB.`
+        );
+        setShowLimitModal(true);
+        return;
+      }
+    }
+
     try {
       setIsConverting(true);
 
       let response;
       let filename = "document.pdf";
+      let fileSize = 0;
 
       if (subTab === "file" && file) {
         const text = await file.text();
         filename = `converted-${file.name}.pdf`;
+        fileSize = file.size;
         response = await fetch("/api/convert", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            type: "html",
             html: text,
             source: "file",
             filename: file.name,
           }),
         });
       } else if (subTab === "code" && code) {
+        fileSize = code.length;
         response = await fetch("/api/convert", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            type: "html",
             html: code,
             source: "code",
           }),
@@ -84,6 +141,17 @@ export function TabHtml() {
 
             const { JobStore } = await import("@/lib/job-store");
             JobStore.set(jobId, blobUrl, filename);
+
+            // RECORD USAGE & HISTORY
+            await recordConversion({
+              jobId,
+              fileName:
+                subTab === "file"
+                  ? file?.name || "html-file"
+                  : "html-code-snippet",
+              fileType: "html",
+              fileSize: fileSize,
+            });
 
             router.push(`/preview/${jobId}`);
             return;
@@ -216,9 +284,17 @@ export function TabHtml() {
                   <p className="font-semibold text-lg text-white mb-1">
                     {file.name}
                   </p>
-                  <p className="text-sm text-orange-400 font-medium">
-                    {(file.size / 1024).toFixed(1)} KB • Ready to convert
-                  </p>
+                  <div className="flex items-center justify-center gap-2">
+                    <p className="text-sm text-orange-400 font-medium">
+                      {(file.size / 1024).toFixed(1)} KB
+                    </p>
+                    {file.size > PLAN_LIMITS.free.maxFileSizeMB * 1024 * 1024 &&
+                      plan === "free" && (
+                        <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Lock className="w-3 h-3" /> Over Limit
+                        </span>
+                      )}
+                  </div>
                 </motion.div>
               ) : (
                 <>
@@ -317,6 +393,11 @@ export function TabHtml() {
           )}
         </motion.button>
       </motion.div>
+      <LimitModal
+        isOpen={showLimitModal}
+        onClose={() => setShowLimitModal(false)}
+        message={limitMessage}
+      />
     </div>
   );
 }

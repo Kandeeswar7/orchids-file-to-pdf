@@ -1,9 +1,13 @@
+/**
+ * DO NOT ADD FIREBASE OR AUTH LOGIC HERE
+ * This worker must remain stateless/isolated.
+ */
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { convertWordToPdf, convertExcelToPdf, convertHtmlToPdf } from './lib/converter';
 import * as fs from 'fs';
 import * as path from 'path';
-import { incrementUsage } from './lib/firestore/users';
+// DELETED: import { incrementUsage } from './lib/firestore/users';
 // Relative import because this runs in ts-node context without path alias support by default
 import { Storage } from './lib/storage';
 
@@ -22,6 +26,20 @@ const worker = new Worker('conversion-queue', async (job) => {
     try {
         const { type, inputPath: jobInputPath, outputPath, options, uid } = job.data;
         inputPath = jobInputPath; // For cleanup later
+        
+        // 🔍 VERIFICATION LOGGING (MANDATORY)
+        console.log(`[Worker] Verifying Paths for Job ${job.id}`);
+        console.log(`[Worker] Input Path: ${inputPath}`);
+        console.log(`[Worker] Output Path: ${outputPath}`);
+
+        // 🛡️ SECURITY CHECK: Enforce Temp Root
+        const tempRoot = Storage.getRootDir();
+        const normalizedInput = path.resolve(inputPath);
+        const normalizedRoot = path.resolve(tempRoot);
+
+        if (!normalizedInput.startsWith(normalizedRoot)) {
+            throw new Error(`SECURITY VIOLATION: Input file is outside temp root! (${inputPath})`);
+        }
         
         let pdfFilename = '';
 
@@ -50,13 +68,10 @@ const worker = new Worker('conversion-queue', async (job) => {
         // converter.ts returns just the filename, let's find where it put it.
         // It uses os.tmpdir() + filename.
         
-        // NOTE: converter.ts logic assumes standard os.tmpdir(). 
-        // We must ensure we look in the same place.
-        // Ideally converter should accept an output directory, but we can't change it easily now?
-        // Actually converter.ts: const TEMP_DIR = os.tmpdir();
-        // So we look there.
+        // NOTE: converter.ts uses Storage.getRootDir() now.
+        // We must look in the same place.
         
-        const generatedPath = path.join(require('os').tmpdir(), pdfFilename);
+        const generatedPath = path.join(Storage.getRootDir(), pdfFilename);
         
         if (fs.existsSync(generatedPath)) {
             // Move/Rename to the target output path (in our safe /converty-work dir)
@@ -74,10 +89,9 @@ const worker = new Worker('conversion-queue', async (job) => {
             console.warn(`[Worker] Failed to cleanup input ${inputPath}`, e);
         }
 
-        // Update Usage stats in Firestore
-        if (uid) {
-            await incrementUsage(uid);
-        }
+        // Update Usage stats in Firestore REMOVED
+        // Worker is now stateless.
+        // Usage tracking should be handled by Frontend or a separate event queue if needed.
         
         return { status: 'completed', downloadUrl: `/api/convert/download/${job.id}` };
 

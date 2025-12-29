@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { JobQueue } from '@/lib/queue';
-import { assertUserCanConvert } from '@/lib/firestore/users';
-import { adminAuth } from '@/lib/firebase/admin';
+// DELETED: import { assertUserCanConvert } from '@/lib/firestore/users';
+// DELETED: import { adminAuth } from '@/lib/firebase/admin';
 import { Storage } from '@/lib/storage';
 
 export async function POST(req: NextRequest) {
@@ -13,39 +13,15 @@ export async function POST(req: NextRequest) {
     let type = '';
     let options: any = {};
     
-    // --- 1. STRICT AUTH CHECK ---
-    const authHeader = req.headers.get('Authorization');
+    // --- 1. STRICT AUTH CHECK REMOVED ---
+    // The backend is now stateless and permission-agnostic.
+    // Frontend handles all gating.
     let uid = '';
     let plan = 'free'; 
     let email = '';
 
-    if (authHeader) {
-        if (!authHeader.startsWith('Bearer ')) {
-             return NextResponse.json({ error: 'Invalid Authorization Header Format' }, { status: 401 });
-        }
-        const token = authHeader.split('Bearer ')[1];
-        try {
-            const decodedToken = await adminAuth.verifyIdToken(token);
-            uid = decodedToken.uid;
-            email = decodedToken.email || '';
-        } catch (e) {
-             console.warn("Invalid Token:", e);
-             // CRITICAL: Reject invalid tokens, do not fall back to guest
-             return NextResponse.json({ error: 'Invalid Authentication Token' }, { status: 401 });
-        }
-    }
-    // If no header, uid stays empty -> Guest
-
-    // --- 2. USAGE LIMIT CHECK ---
-    if (uid) {
-        const check = await assertUserCanConvert(uid, email);
-        if (!check.allowed) {
-            return NextResponse.json({ error: check.reason }, { status: 403 });
-        }
-        plan = check.plan;
-    } else {
-        plan = 'guest';
-    }
+    // NOTE: We keep these variables empty/default to pass to the queue
+    // if strictly needed for typing, but they are meaningless now.
 
     const jobId = crypto.randomUUID();
 

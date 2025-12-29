@@ -15,7 +15,7 @@ import { useState } from "react";
 
 export function Navbar() {
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
+  const { user, signOut, plan } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isAuthPage =
@@ -34,6 +34,11 @@ export function Navbar() {
             <span className="text-white text-lg">C</span>
           </div>
           <span className="text-white">Converty</span>
+          {plan === "premium" && (
+            <span className="hidden sm:inline-block px-1.5 py-0.5 rounded-md bg-gradient-to-r from-amber-500 to-orange-500 text-[10px] font-bold text-white uppercase tracking-wider ml-1">
+              PRO
+            </span>
+          )}
         </Link>
 
         {/* Desktop Nav */}
@@ -106,6 +111,14 @@ export function Navbar() {
                     >
                       <Settings className="w-4 h-4" /> Settings
                     </Link>
+                    {plan === "premium" && (
+                      <Link
+                        href="/history"
+                        className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+                      >
+                        <FileText className="w-4 h-4" /> History
+                      </Link>
+                    )}
                     <button
                       onClick={() => signOut()}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left"

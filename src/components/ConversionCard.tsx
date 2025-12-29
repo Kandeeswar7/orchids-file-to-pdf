@@ -9,10 +9,40 @@ import { TabHtml } from "./TabHtml";
 import { TabUrl } from "./TabUrl";
 import { cn } from "@/lib/utils";
 
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useEffect } from "react";
+
 type Tab = "word" | "excel" | "html" | "url";
 
 export function ConversionCard() {
-  const [activeTab, setActiveTab] = useState<Tab>("word");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+
+  const getInitialTab = (): Tab => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["word", "excel", "html", "url"].includes(tabParam)) {
+      return tabParam as Tab;
+    }
+    return "word";
+  };
+
+  const [activeTab, setActiveTab] = useState<Tab>(getInitialTab());
+
+  // Sync state with URL changes (e.g. back button)
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["word", "excel", "html", "url"].includes(tabParam)) {
+      setActiveTab(tabParam as Tab);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tabId: Tab) => {
+    setActiveTab(tabId);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", tabId);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   const tabs = [
     {
@@ -70,7 +100,7 @@ export function ConversionCard() {
                 key={tab.id}
                 // Removed role="tab"
                 id={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => handleTabChange(tab.id as Tab)}
                 aria-selected={isActive}
                 aria-controls={`panel-${tab.id}`}
                 className={cn(

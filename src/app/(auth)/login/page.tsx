@@ -110,11 +110,57 @@ export default function LoginPage() {
           )}
         </button>
 
-        <div className="mt-8 text-center bg-white/5 rounded-lg p-3 border border-white/5">
-          <p className="text-xs text-gray-400">
-            Email login will be available soon.
-          </p>
+        <div className="mt-8 flex items-center gap-4">
+          <div className="h-px flex-1 bg-white/10" />
+          <span className="text-xs text-gray-500 font-medium">OR EMAIL</span>
+          <div className="h-px flex-1 bg-white/10" />
         </div>
+
+        <form onSubmit={handleEmailLogin} className="mt-8 space-y-4">
+          <div>
+            <label className="text-xs font-semibold text-gray-400 ml-1 mb-1 block">
+              Email Address
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+              placeholder="name@example.com"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-400 ml-1 mb-1 block">
+              Password
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <Link
+              href="/forgot-password"
+              className="text-xs text-purple-400 hover:text-purple-300"
+            >
+              Forgot Password?
+            </Link>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full rounded-xl bg-purple-600 text-white font-semibold py-3 hover:bg-purple-500 transition flex items-center justify-center gap-2"
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign In"}
+          </button>
+        </form>
       </motion.div>
     </main>
   );

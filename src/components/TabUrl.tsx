@@ -21,8 +21,20 @@ export function TabUrl() {
   const router = useRouter();
 
   const handleConvertClick = () => {
-    if (url) {
+    if (!url) return;
+
+    // Basic validation & auto-fix
+    let validUrl = url;
+    if (!url.match(/^https?:\/\//i)) {
+      validUrl = `https://${url}`;
+    }
+
+    try {
+      new URL(validUrl);
+      setUrl(validUrl); // Update state to valid URL
       setShowConfirmation(true);
+    } catch (e) {
+      alert("Please enter a valid URL (e.g., example.com)");
     }
   };
 
@@ -30,10 +42,14 @@ export function TabUrl() {
     try {
       setIsConverting(true);
 
+      if (!url) {
+        throw new Error("No URL provided");
+      }
+
       const response = await fetch("/api/convert/url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ type: "url", url }),
       });
 
       if (!response.ok) {

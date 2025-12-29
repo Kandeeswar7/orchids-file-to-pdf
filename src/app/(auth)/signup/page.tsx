@@ -130,10 +130,110 @@ export default function SignupPage() {
             )}
           </button>
 
-          <div className="mt-8 text-center bg-white/5 rounded-lg p-3 border border-white/5">
-            <p className="text-xs text-gray-400">
-              Email registration will be available soon.
-            </p>
+          <div className="mt-8 flex items-center gap-4">
+            <div className="h-px flex-1 bg-white/10" />
+            <span className="text-xs text-gray-500 font-medium">OR EMAIL</span>
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <div className="mt-8">
+            <AnimatePresence mode="wait">
+              {step === 1 && (
+                <motion.div
+                  key="step1"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 ml-1 mb-1 block">
+                      Full Name
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) =>
+                          setFormData({ ...formData, name: e.target.value })
+                        }
+                        className="w-full bg-black/20 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                        placeholder="John Doe"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 ml-1 mb-1 block">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) =>
+                          setFormData({ ...formData, email: e.target.value })
+                        }
+                        className="w-full bg-black/20 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                        placeholder="name@example.com"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={nextStep}
+                    className="w-full rounded-xl bg-purple-600 text-white font-semibold py-3 hover:bg-purple-500 transition flex items-center justify-center gap-2"
+                  >
+                    Continue <ArrowRight className="w-4 h-4" />
+                  </button>
+                </motion.div>
+              )}
+
+              {step === 2 && (
+                <motion.div
+                  key="step2"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="space-y-4"
+                >
+                  <div>
+                    <label className="text-xs font-semibold text-gray-400 ml-1 mb-1 block">
+                      Create Password
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                      <input
+                        type="password"
+                        value={formData.password}
+                        onChange={(e) =>
+                          setFormData({ ...formData, password: e.target.value })
+                        }
+                        className="w-full bg-black/20 border border-white/10 rounded-xl pl-12 pr-4 py-3 text-white focus:outline-none focus:border-purple-500 transition-colors"
+                        placeholder="••••••••"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleFinalSubmit}
+                    disabled={loading}
+                    className="w-full rounded-xl bg-purple-600 text-white font-semibold py-3 hover:bg-purple-500 transition flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      "Create Account"
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setStep(1)}
+                    className="w-full text-sm text-gray-400 hover:text-white py-2"
+                  >
+                    Back
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 

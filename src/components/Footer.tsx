@@ -28,7 +28,7 @@ export function Footer() {
           <ul className="space-y-2 text-sm">
             <li>
               <Link
-                href="/convert"
+                href="/convert?tab=word"
                 className="hover:text-purple-400 transition-colors"
               >
                 Convert Word to PDF
@@ -36,26 +36,26 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="/convert"
+                href="/convert?tab=excel" // Redirect to Excel tab
                 className="hover:text-purple-400 transition-colors"
               >
-                Convert Excel to PDF
+                Excel to PDF
               </Link>
             </li>
             <li>
               <Link
-                href="/premium"
+                href="/convert?tab=html"
                 className="hover:text-purple-400 transition-colors"
               >
-                Pricing
+                HTML to PDF
               </Link>
             </li>
             <li>
               <Link
-                href="/dashboard"
+                href="/convert?tab=url"
                 className="hover:text-purple-400 transition-colors"
               >
-                Changelog
+                URL to PDF
               </Link>
             </li>
           </ul>
@@ -66,7 +66,7 @@ export function Footer() {
           <ul className="space-y-2 text-sm">
             <li>
               <Link
-                href="#"
+                href="/about"
                 className="hover:text-purple-400 transition-colors"
               >
                 About Us
@@ -74,7 +74,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="#"
+                href="/careers"
                 className="hover:text-purple-400 transition-colors"
               >
                 Careers
@@ -82,7 +82,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="#"
+                href="/blog"
                 className="hover:text-purple-400 transition-colors"
               >
                 Blog
@@ -90,10 +90,18 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="#"
+                href="/contact"
                 className="hover:text-purple-400 transition-colors"
               >
                 Contact
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/release-notes"
+                className="hover:text-purple-400 transition-colors"
+              >
+                Release Notes
               </Link>
             </li>
           </ul>
@@ -104,7 +112,7 @@ export function Footer() {
           <ul className="space-y-2 text-sm">
             <li>
               <Link
-                href="#"
+                href="/privacy"
                 className="hover:text-purple-400 transition-colors"
               >
                 Privacy Policy
@@ -112,7 +120,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="#"
+                href="/terms"
                 className="hover:text-purple-400 transition-colors"
               >
                 Terms of Service
@@ -120,7 +128,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="#"
+                href="/cookies"
                 className="hover:text-purple-400 transition-colors"
               >
                 Cookie Policy

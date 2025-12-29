@@ -1,10 +1,32 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { User, Shield, Key } from "lucide-react";
+import { User, Shield, Key, Trash2 } from "lucide-react";
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, deleteProfile } = useAuth();
+
+  const handleDelete = async () => {
+    if (
+      confirm(
+        "Are you sure you want to delete your account? This action cannot be undone."
+      )
+    ) {
+      try {
+        await deleteProfile();
+      } catch (error: any) {
+        if (error.code === "auth/requires-recent-login") {
+          alert(
+            "Security Check: Please log out and log back in to delete your account."
+          );
+        } else {
+          alert(
+            "Failed to delete account: " + (error.message || "Unknown error")
+          );
+        }
+      }
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-6 md:p-12 space-y-8">
@@ -82,6 +104,23 @@ export default function SettingsPage() {
               Change Password
             </button>
           </div>
+        </div>
+
+        {/* Danger Zone */}
+        <div className="p-6 rounded-2xl bg-red-500/5 border border-red-500/20">
+          <div className="flex items-center gap-3 mb-4 text-red-400 font-semibold">
+            <Trash2 className="w-5 h-5" />
+            Danger Zone
+          </div>
+          <p className="text-sm text-gray-400 mb-4">
+            Permanently delete your account and all associated data.
+          </p>
+          <button
+            onClick={handleDelete}
+            className="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm border border-red-500/20 transition-colors"
+          >
+            Delete Account
+          </button>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { convertUrlToPdf } from '@/lib/converter';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import { Storage } from '@/lib/storage';
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     const filename = await convertUrlToPdf(url, { orientation: 'portrait' });
     console.log(`[URL] Conversion completed for job ${jobId}, filename: ${filename}`);
 
-    const filePath = path.join(os.tmpdir(), filename);
+    const filePath = path.join(Storage.getRootDir(), filename);
 
     if (!fs.existsSync(filePath)) {
        throw new Error("Generated PDF file not found");
