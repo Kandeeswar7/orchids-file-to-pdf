@@ -122,9 +122,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (e) {
       console.error("Error fetching user data:", e);
-      // Fallback to safe defaults
+      // Fallback to safe defaults but try local storage for usage
       setPlan("free");
       setDailyUsage(0);
+    } finally {
+      // SYNC LOCAL STORAGE (Robustness)
+      // If Firestore is lagging or failed, trust local storage if it's higher
+      try {
+        const today = new Date().toISOString().split("T")[0];
+        const key = `converty_usage_${uid}_${today}`;
+        const localUsage = parseInt(localStorage.getItem(key) || "0");
+
+        setDailyUsage((prev) => {
+          return Math.max(prev, localUsage);
+        });
+      } catch (e) {
+        console.warn("Local storage sync failed", e);
+      }
     }
   };
 
@@ -287,35 +301,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fileType: string;
     fileSize: number;
   }) => {
-    if (!db || !user) return;
+    if (!user) return;
 
-    // 1. Increment Daily Count
-    try {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
-        dailyConversionCount: increment(1),
-      });
-      setDailyUsage((prev) => prev + 1);
-    } catch (e) {
-      console.warn(
-        "[AuthContext] Failed to increment usage (non-critical):",
-        e
-      );
+    // 1. Optimistic Local Update (Immediate UI Feeback)
+    setDailyUsage((prev) => prev + 1);
+
+    // 2. Persist to Firestore (Best Effort)
+    if (db) {
+      try {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+          dailyConversionCount: increment(1),
+        });
+
+        // If Premium, add to history
+        if (plan === "premium") {
+          await addDoc(collection(db, "conversions"), {
+            uid: user.uid,
+            ...jobData,
+            createdAt: serverTimestamp(),
+            expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000), // 24h
+            downloadUrl: `/api/convert/download/${jobData.jobId}`,
+          });
+        }
+      } catch (e) {
+        console.warn(
+          "[AuthContext] Firestore update failed, falling back to local storage:",
+          e
+        );
+      }
     }
 
-    // 2. If Premium, add to history
+    // 3. Persist to LocalStorage (Backup for Free/Offline)
     try {
-      if (plan === "premium") {
-        await addDoc(collection(db, "conversions"), {
-          uid: user.uid,
-          ...jobData,
-          createdAt: serverTimestamp(),
-          expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000), // 24h
-          downloadUrl: `/api/convert/download/${jobData.jobId}`, // Assuming this works for now
-        });
-      }
+      const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+      const key = `converty_usage_${user.uid}_${today}`;
+      const current = parseInt(localStorage.getItem(key) || "0");
+      localStorage.setItem(key, (current + 1).toString());
     } catch (e) {
-      console.warn("[AuthContext] Failed to record history (non-critical):", e);
+      console.error("LocalStorage error:", e);
     }
   };
 

@@ -13,8 +13,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 export function TabUrl() {
+  const { recordConversion } = useAuth();
   const [url, setUrl] = useState("");
   const [isConverting, setIsConverting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -70,6 +72,13 @@ export function TabUrl() {
       // Store result in client-side store
       const { JobStore } = await import("@/lib/job-store");
       JobStore.set(jobId, blobUrl, `website.pdf`);
+
+      await recordConversion({
+        jobId,
+        fileName: url,
+        fileType: "url",
+        fileSize: 0,
+      });
 
       router.push(`/preview/${jobId}`);
     } catch (error: any) {
