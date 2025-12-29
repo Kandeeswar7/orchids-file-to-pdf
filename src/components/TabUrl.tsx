@@ -43,7 +43,7 @@ export function TabUrl() {
       setIsConverting(true);
 
       if (!url) {
-        throw new Error("No URL provided");
+        throw new Error("Please enter a valid URL");
       }
 
       const response = await fetch("/api/convert/url", {

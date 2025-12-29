@@ -166,7 +166,7 @@ export function TabHtml() {
       }
     } catch (error: any) {
       console.error("Error converting HTML:", error);
-      alert(`Conversion failed: ${error.message || "Please try again."}`);
+      alert(`${error.message || "Conversion failed. Please try again."}`);
     } finally {
       setIsConverting(false);
     }

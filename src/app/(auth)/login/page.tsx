@@ -160,6 +160,16 @@ export default function LoginPage() {
           >
             {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Sign In"}
           </button>
+
+          <p className="text-center text-xs text-gray-400 mt-6">
+            Don't have an account?{" "}
+            <Link
+              href="/signup"
+              className="text-purple-400 hover:text-purple-300 font-medium"
+            >
+              Create account
+            </Link>
+          </p>
         </form>
       </motion.div>
     </main>

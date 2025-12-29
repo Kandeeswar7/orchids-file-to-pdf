@@ -214,7 +214,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return userCredential.user;
   };
 
+  /*
+   * MULTI-TAB LOGOUT SYNC
+   * Listen for logout events from other tabs to ensure immediate consistency.
+   */
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === "converty-logout-event") {
+        // Force state clear and redirect
+        setUser(null);
+        setPlan("free");
+        setDailyUsage(0);
+        window.location.href = "/login";
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
   const handleSignOut = async () => {
+    // 1. Notify other tabs
+    localStorage.setItem("converty-logout-event", Date.now().toString());
+
     if (!auth) {
       // Demo Mode Logout
       setUser(null);

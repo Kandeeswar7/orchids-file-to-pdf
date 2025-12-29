@@ -15,12 +15,15 @@ import { useState } from "react";
 
 export function Navbar() {
   const pathname = usePathname();
-  const { user, signOut, plan } = useAuth();
+  const { user, signOut, plan, loading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isAuthPage =
     pathname?.startsWith("/login") || pathname?.startsWith("/signup");
   if (isAuthPage) return null;
+
+  // Prevent flicker
+  if (loading) return null;
 
   return (
     <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-[#030014]/80 backdrop-blur-xl">
