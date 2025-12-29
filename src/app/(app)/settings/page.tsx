@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { User, Shield, Key, Trash2 } from "lucide-react";
 
 export default function SettingsPage() {
-  const { user, deleteProfile } = useAuth();
+  const { user, plan, deleteProfile } = useAuth();
 
   const handleDelete = async () => {
     if (
@@ -60,7 +60,7 @@ export default function SettingsPage() {
                 Plan
               </label>
               <div className="px-4 py-2 rounded-lg bg-black/20 border border-white/10 text-white flex justify-between items-center">
-                <span>Free Plan</span>
+                <span>{plan === "premium" ? "Premium Plan" : "Free Plan"}</span>
                 <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400">
                   Active
                 </span>

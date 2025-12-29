@@ -169,20 +169,23 @@ export function Navbar() {
         <div className="md:hidden border-t border-white/5 bg-[#030014] p-4 space-y-4">
           {user ? (
             <>
-              <Link href="/convert" className="block text-gray-300 py-2">
+              <Link href="/convert" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 py-2">
                 Convert
               </Link>
-              <Link href="/dashboard" className="block text-gray-300 py-2">
+              <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 py-2">
                 History
               </Link>
-              <Link href="/premium" className="block text-gray-300 py-2">
+              <Link href="/premium" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 py-2">
                 Pricing
               </Link>
-              <Link href="/settings" className="block text-gray-300 py-2">
+              <Link href="/settings" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 py-2">
                 Settings
               </Link>
               <button
-                onClick={() => signOut()}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  signOut();
+                }}
                 className="block w-full text-left text-red-400 py-2"
               >
                 Sign Out
@@ -190,10 +193,10 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Link href="/login" className="block text-gray-300 py-2">
+              <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="block text-gray-300 py-2">
                 Log In
               </Link>
-              <Link href="/signup" className="block text-purple-400 py-2">
+              <Link href="/signup" onClick={() => setMobileMenuOpen(false)} className="block text-purple-400 py-2">
                 Sign Up
               </Link>
             </>
