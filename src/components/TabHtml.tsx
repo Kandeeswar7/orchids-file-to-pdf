@@ -23,7 +23,7 @@ type SubTab = "file" | "code";
 export function TabHtml() {
   const { user, plan, dailyUsage, recordConversion } = useAuth();
   const [subTab, setSubTab] = useState<SubTab>("file");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]); // CHANGED: Single file -> Array
   const [code, setCode] = useState("");
   const [isConverting, setIsConverting] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
@@ -32,13 +32,34 @@ export function TabHtml() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const f = e.target.files[0];
-      if (!f.name.match(/\.(html|htm)$/i)) {
-        alert("Invalid file type. Please upload an HTML file (.html, .htm).");
+    if (e.target.files && e.target.files.length > 0) {
+      // Enforce limits
+      const targetFiles = Array.from(e.target.files);
+      const maxFiles =
+        plan === "premium"
+          ? PLAN_LIMITS.premium.maxBatchSize
+          : PLAN_LIMITS.free.maxBatchSize;
+
+      // Validation 1: Max Files
+      if (targetFiles.length > maxFiles) {
+        alert(
+          plan === "free"
+            ? "Free users can only convert 1 file at a time. Upgrade for batch processing!"
+            : `You can only convert up to ${maxFiles} files at once.`
+        );
         return;
       }
-      setFile(f);
+
+      // Validation 2: File Types
+      const invalidFiles = targetFiles.filter(
+        (f) => !f.name.match(/\.(html|htm)$/i)
+      );
+      if (invalidFiles.length > 0) {
+        alert("Invalid file type. Please upload HTML files (.html, .htm).");
+        return;
+      }
+
+      setFiles(targetFiles);
     }
   };
 
@@ -46,67 +67,125 @@ export function TabHtml() {
     // 1. LIMIT CHECKS
     const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
 
-    // Check Daily Usage
-    if (dailyUsage >= limits.maxDailyConversions) {
+    if (subTab === "file" && files.length === 0) return;
+    if (subTab === "code" && !code) return;
+
+    // Daily Limit Check
+    const count = subTab === "file" ? files.length : 1;
+    if (dailyUsage + count > limits.maxDailyConversions) {
       setLimitMessage(
-        `Daily limit reached (${limits.maxDailyConversions}/${limits.maxDailyConversions}).`
+        `Daily limit reached. You can only convert ${
+          limits.maxDailyConversions - dailyUsage
+        } more files today.`
       );
       setShowLimitModal(true);
       return;
     }
 
-    // Check File Size (File Mode)
-    if (subTab === "file" && file) {
-      const sizeMB = file.size / (1024 * 1024);
-      if (sizeMB > limits.maxFileSizeMB) {
-        setLimitMessage(
-          `File too large (${sizeMB.toFixed(1)}MB). Limit is ${
-            limits.maxFileSizeMB
-          }MB.`
-        );
-        setShowLimitModal(true);
-        return;
-      }
-    }
-
-    // Check Code Size (Code Mode) - Approx 1 char = 1 byte
-    if (subTab === "code" && code) {
-      const sizeMB = code.length / (1024 * 1024);
-      if (sizeMB > limits.maxFileSizeMB) {
-        setLimitMessage(
-          `Code content too large (${sizeMB.toFixed(1)}MB). Limit is ${
-            limits.maxFileSizeMB
-          }MB.`
-        );
-        setShowLimitModal(true);
-        return;
-      }
-    }
+    setIsConverting(true); // FIX A: Explicit State
+    let successCount = 0;
+    const errors: string[] = [];
+    let lastJobId = "";
 
     try {
-      setIsConverting(true);
+      if (subTab === "file") {
+        // Sequential Loop (FIX B: Multi-File Support)
+        for (const file of files) {
+          try {
+            // Check File Size
+            const sizeMB = file.size / (1024 * 1024);
+            if (sizeMB > limits.maxFileSizeMB) {
+              throw new Error(
+                `File too large (${sizeMB.toFixed(1)}MB). Limit is ${
+                  limits.maxFileSizeMB
+                }MB.`
+              );
+            }
 
-      let response;
-      let filename = "document.pdf";
-      let fileSize = 0;
+            const text = await file.text();
+            const fileSize = file.size;
+            const filename = `converted-${file.name}.pdf`;
 
-      if (subTab === "file" && file) {
-        const text = await file.text();
-        filename = `converted-${file.name}.pdf`;
-        fileSize = file.size;
-        response = await fetch("/api/convert", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            type: "html",
-            html: text,
-            source: "file",
-            filename: file.name,
-          }),
-        });
-      } else if (subTab === "code" && code) {
-        fileSize = code.length;
-        response = await fetch("/api/convert", {
+            const response = await fetch("/api/convert", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "html",
+                html: text,
+                source: "file",
+                filename: file.name,
+              }),
+            });
+
+            if (!response.ok) {
+              const data = await response.json();
+              throw new Error(data.error || "Conversion failed");
+            }
+
+            const { jobId } = await response.json();
+            lastJobId = jobId;
+
+            // Poll for Status (FIX A: Await Promise correctly)
+            await new Promise<void>((resolve, reject) => {
+              const checkStatus = async () => {
+                try {
+                  const statusRes = await fetch(`/api/convert/status/${jobId}`);
+                  const statusData = await statusRes.json();
+
+                  if (statusData.state === "completed") {
+                    const downloadUrl = `/api/convert/download/${jobId}`;
+
+                    // Store Result
+                    const { JobStore } = await import("@/lib/job-store");
+                    // Persist if Premium
+                    const persistenceUid =
+                      plan === "premium" && user ? user.uid : undefined;
+                    JobStore.set(jobId, downloadUrl, filename, persistenceUid, {
+                      // We don't have blob here yet unless we fetch it, but URL is enough for history
+                      fileType: "html",
+                      fileSize: fileSize,
+                      downloadUrl,
+                    });
+
+                    // Record
+                    await recordConversion({
+                      jobId,
+                      fileName: file.name,
+                      fileType: "html",
+                      fileSize: fileSize,
+                    });
+                    resolve();
+                  } else if (statusData.state === "failed") {
+                    reject(new Error("Conversion failed in worker"));
+                  } else {
+                    setTimeout(checkStatus, 1000);
+                  }
+                } catch (e) {
+                  reject(e);
+                }
+              };
+              checkStatus();
+            });
+
+            successCount++;
+          } catch (e: any) {
+            console.error(`Failed to convert ${file.name}`, e);
+            errors.push(`${file.name}: ${e.message}`);
+          }
+        }
+      } else {
+        // CODE MODE (Single)
+        const sizeMB = code.length / (1024 * 1024);
+        if (sizeMB > limits.maxFileSizeMB) {
+          setLimitMessage(
+            `Code content too large. Limit is ${limits.maxFileSizeMB}MB.`
+          );
+          setShowLimitModal(true);
+          setIsConverting(false); // Reset here as we return early
+          return;
+        }
+
+        const response = await fetch("/api/convert", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -115,59 +194,80 @@ export function TabHtml() {
             source: "code",
           }),
         });
-      }
 
-      if (response && !response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Conversion failed");
-      }
-
-      if (response) {
-        // 1. Get Job ID
+        if (!response.ok) throw new Error("Conversion failed");
         const { jobId } = await response.json();
+        lastJobId = jobId;
 
-        // 2. Poll for Status
-        const checkStatus = async () => {
-          const statusRes = await fetch(`/api/convert/status/${jobId}`);
-          const statusData = await statusRes.json();
+        // Poll for Status
+        await new Promise<void>((resolve, reject) => {
+          const checkStatus = async () => {
+            try {
+              const statusRes = await fetch(`/api/convert/status/${jobId}`);
+              const statusData = await statusRes.json();
 
-          if (statusData.state === "completed") {
-            // 3. Download
-            const downloadUrl = `/api/convert/download/${jobId}`;
+              if (statusData.state === "completed") {
+                const downloadUrl = `/api/convert/download/${jobId}`;
+                const { JobStore } = await import("@/lib/job-store");
+                const persistenceUid =
+                  plan === "premium" && user ? user.uid : undefined;
 
-            const fileRes = await fetch(downloadUrl);
-            const blob = await fileRes.blob();
-            const blobUrl = URL.createObjectURL(blob);
+                JobStore.set(
+                  jobId,
+                  downloadUrl,
+                  "document.pdf",
+                  persistenceUid,
+                  {
+                    fileType: "html",
+                    fileSize: code.length,
+                    downloadUrl,
+                  }
+                );
 
-            const { JobStore } = await import("@/lib/job-store");
-            JobStore.set(jobId, blobUrl, filename);
+                await recordConversion({
+                  jobId,
+                  fileName: "html-code-snippet",
+                  fileType: "html",
+                  fileSize: code.length,
+                });
+                resolve();
+              } else if (statusData.state === "failed") {
+                reject(new Error("Worker failed"));
+              } else {
+                setTimeout(checkStatus, 1000);
+              }
+            } catch (e) {
+              reject(e);
+            }
+          };
+          checkStatus();
+        });
+        successCount++;
+      }
 
-            // RECORD USAGE & HISTORY
-            await recordConversion({
-              jobId,
-              fileName:
-                subTab === "file"
-                  ? file?.name || "html-file"
-                  : "html-code-snippet",
-              fileType: "html",
-              fileSize: fileSize,
-            });
+      // Report Errors
+      if (errors.length > 0) {
+        alert(
+          `Conversion Report:\n\nSuccessful: ${successCount}\nFailed: ${
+            errors.length
+          }\n\nErrors:\n${errors.join("\n")}`
+        );
+      }
 
-            router.push(`/preview/${jobId}`);
-            return;
-          } else if (statusData.state === "failed") {
-            throw new Error("Conversion failed in worker");
-          } else {
-            setTimeout(checkStatus, 1000);
-          }
-        };
-
-        await checkStatus();
+      // Navigation (FIX C: Redirect logic)
+      if (successCount > 0) {
+        if (successCount > 1 || (subTab === "file" && files.length > 1)) {
+          router.push("/history");
+        } else if (lastJobId) {
+          router.push(`/preview/${lastJobId}`);
+        }
+      } else {
+        // Failed all
+        setIsConverting(false); // Only reset if we are NOT navigating away
       }
     } catch (error: any) {
       console.error("Error converting HTML:", error);
       alert(`${error.message || "Conversion failed. Please try again."}`);
-    } finally {
       setIsConverting(false);
     }
   };
@@ -254,25 +354,28 @@ export function TabHtml() {
             className="space-y-4"
           >
             <motion.div
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => !isConverting && fileInputRef.current?.click()}
               className={cn(
                 "border-2 border-dashed rounded-2xl p-12 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 group",
-                file
+                files.length > 0
                   ? "border-orange-500/50 bg-orange-500/10"
-                  : "border-white/10 hover:border-white/20 hover:bg-white/5"
+                  : "border-white/10 hover:border-white/20 hover:bg-white/5",
+                isConverting && "cursor-not-allowed opacity-50"
               )}
-              whileHover={{ scale: file ? 1 : 1.01 }}
+              whileHover={{ scale: files.length > 0 ? 1 : 1.01 }}
             >
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".html,.htm"
+                multiple={plan === "premium"} // FIX B: Multi-File
                 onChange={handleFileChange}
                 className="hidden"
+                disabled={isConverting}
                 aria-label="Upload HTML file"
               />
 
-              {file ? (
+              {files.length > 0 ? (
                 <motion.div
                   className="text-center"
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -282,31 +385,24 @@ export function TabHtml() {
                     <FileCode className="w-8 h-8 text-orange-400" />
                   </div>
                   <p className="font-semibold text-lg text-white mb-1">
-                    {file.name}
+                    {files.length === 1
+                      ? files[0].name
+                      : `${files.length} files selected`}
                   </p>
                   <div className="flex items-center justify-center gap-2">
                     <p className="text-sm text-orange-400 font-medium">
-                      {(file.size / 1024).toFixed(1)} KB
+                      {files.length === 1 &&
+                        (files[0].size / 1024).toFixed(1) + " KB"}
                     </p>
-                    {file.size > PLAN_LIMITS.free.maxFileSizeMB * 1024 * 1024 &&
-                      plan === "free" && (
-                        <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded flex items-center gap-1">
-                          <Lock className="w-3 h-3" /> Over Limit
-                        </span>
-                      )}
                   </div>
                 </motion.div>
               ) : (
                 <>
-                  <motion.div
-                    className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4 group-hover:bg-white/10 transition-colors"
-                    whileHover={{ rotate: [0, -10, 10, -10, 0] }}
-                    transition={{ duration: 0.5 }}
-                  >
+                  <motion.div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center mb-4 group-hover:bg-white/10 transition-colors">
                     <Upload className="w-8 h-8 text-gray-400 group-hover:text-white transition-colors" />
                   </motion.div>
                   <p className="text-white font-semibold text-lg mb-1">
-                    Click to upload HTML file
+                    Click to upload HTML file{plan === "premium" ? "s" : ""}
                   </p>
                   <p className="text-sm text-gray-400">
                     or drag and drop • .html, .htm supported
@@ -330,6 +426,7 @@ export function TabHtml() {
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="<!DOCTYPE html>&#10;<html>&#10;  <head>&#10;    <title>My Document</title>&#10;  </head>&#10;  <body>&#10;    <h1>Hello World</h1>&#10;  </body>&#10;</html>"
                 className="w-full h-64 bg-black/40 border-2 border-white/10 rounded-2xl p-6 font-mono text-sm text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 resize-none transition-all"
+                disabled={isConverting}
                 aria-label="HTML code input"
               />
               {code && (
@@ -357,17 +454,21 @@ export function TabHtml() {
           onClick={handleConvert}
           disabled={
             isConverting ||
-            (subTab === "file" && !file) ||
+            (subTab === "file" && files.length === 0) ||
             (subTab === "code" && !code)
           }
           className={cn(
             "w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2.5 transition-all duration-300 focus-ring",
-            (subTab === "file" && !file) || (subTab === "code" && !code)
+            (subTab === "file" && files.length === 0) ||
+              (subTab === "code" && !code) ||
+              isConverting
               ? "bg-white/5 text-gray-500 cursor-not-allowed"
               : "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-900/30"
           )}
           whileHover={
-            (subTab === "file" && file) || (subTab === "code" && code)
+            !isConverting &&
+            ((subTab === "file" && files.length > 0) ||
+              (subTab === "code" && code))
               ? {
                   scale: 1.02,
                   boxShadow: "0 20px 40px rgba(249, 115, 22, 0.4)",
@@ -375,7 +476,9 @@ export function TabHtml() {
               : {}
           }
           whileTap={
-            (subTab === "file" && file) || (subTab === "code" && code)
+            !isConverting &&
+            ((subTab === "file" && files.length > 0) ||
+              (subTab === "code" && code))
               ? { scale: 0.98 }
               : {}
           }

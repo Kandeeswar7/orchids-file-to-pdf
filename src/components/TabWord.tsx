@@ -88,90 +88,127 @@ export function TabWord() {
 
     setLoading(true);
 
+    let successCount = 0;
+    const errors: string[] = [];
+    let lastJobId = "";
+
     try {
       // Sequential Conversion Loop
-      let lastJobId = "";
       for (const file of files) {
-        // Size Check per file
-        const sizeMB = file.size / (1024 * 1024);
-        if (sizeMB > limits.maxFileSizeMB) {
-          throw new Error(
-            `File ${file.name} is too large (${sizeMB.toFixed(
-              1
-            )}MB). Limit is ${limits.maxFileSizeMB}MB.`
-          );
-        }
+        try {
+          // Size Check per file
+          const sizeMB = file.size / (1024 * 1024);
+          if (sizeMB > limits.maxFileSizeMB) {
+            throw new Error(
+              `File ${file.name} is too large (${sizeMB.toFixed(
+                1
+              )}MB). Limit is ${limits.maxFileSizeMB}MB.`
+            );
+          }
 
-        // 2. Submit Job
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("orientation", options.orientation);
-        formData.append("pageSize", options.pageSize);
+          // 2. Submit Job
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("orientation", options.orientation);
+          formData.append("pageSize", options.pageSize);
 
-        const res = await fetch("/api/convert", {
-          method: "POST",
-          body: formData,
-        });
+          const res = await fetch("/api/convert", {
+            method: "POST",
+            body: formData,
+          });
 
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || `Failed to convert ${file.name}`);
-        }
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || `Failed to convert ${file.name}`);
+          }
 
-        const { jobId } = await res.json();
-        lastJobId = jobId;
+          const { jobId } = await res.json();
+          lastJobId = jobId;
 
-        // 3. Poll for Status
-        await new Promise<void>((resolve, reject) => {
-          const checkStatus = async () => {
-            try {
-              const statusRes = await fetch(`/api/convert/status/${jobId}`);
-              const statusData = await statusRes.json();
+          // 3. Poll for Status
+          await new Promise<void>((resolve, reject) => {
+            const checkStatus = async () => {
+              try {
+                const statusRes = await fetch(`/api/convert/status/${jobId}`);
+                const statusData = await statusRes.json();
 
-              if (statusData.state === "completed") {
-                // 4. Download & Record
-                const downloadUrl =
-                  statusData.result?.downloadUrl ||
-                  `/api/convert/download/${jobId}`;
+                if (statusData.state === "completed") {
+                  // 4. Download & Record
+                  const downloadUrl =
+                    statusData.result?.downloadUrl ||
+                    `/api/convert/download/${jobId}`;
 
-                // Pre-fetch blob to store in JobStore for preview
-                const fileRes = await fetch(downloadUrl);
-                const blob = await fileRes.blob();
-                const blobUrl = URL.createObjectURL(blob);
+                  // Pre-fetch blob to store in JobStore for preview
+                  const fileRes = await fetch(downloadUrl);
+                  const blob = await fileRes.blob();
+                  const blobUrl = URL.createObjectURL(blob);
 
-                const { JobStore } = await import("@/lib/job-store");
-                JobStore.set(jobId, blobUrl, `converted-${file.name}.pdf`);
+                  const { JobStore } = await import("@/lib/job-store");
+                  // Persist if Premium (user.uid is available)
+                  const persistenceUid =
+                    plan === "premium" && user ? user.uid : undefined;
 
-                // Global Record
-                await recordConversion({
-                  jobId,
-                  fileName: file.name,
-                  fileType: "word",
-                  fileSize: file.size,
-                });
-                resolve();
-              } else if (statusData.state === "failed") {
-                reject(new Error(`Conversion failed for ${file.name}`));
-              } else {
-                setTimeout(checkStatus, 1000);
+                  JobStore.set(
+                    jobId,
+                    blobUrl,
+                    `converted-${file.name}.pdf`,
+                    persistenceUid,
+                    {
+                      fileType: "word",
+                      fileSize: file.size,
+                      downloadUrl,
+                    }
+                  );
+
+                  // Global Record
+                  await recordConversion({
+                    jobId,
+                    fileName: file.name,
+                    fileType: "word",
+                    fileSize: file.size,
+                  });
+                  resolve();
+                } else if (statusData.state === "failed") {
+                  reject(new Error(`Conversion failed for ${file.name}`));
+                } else {
+                  setTimeout(checkStatus, 1000);
+                }
+              } catch (e) {
+                reject(e);
               }
-            } catch (e) {
-              reject(e);
-            }
-          };
-          checkStatus();
-        });
+            };
+            checkStatus();
+          });
+
+          successCount++;
+        } catch (err: any) {
+          console.error(`Failed to convert ${file.name}`, err);
+          errors.push(`${file.name}: ${err.message}`);
+        }
       }
 
-      // All Done
-      if (files.length > 1) {
-        router.push("/history");
-      } else if (lastJobId) {
-        router.push(`/preview/${lastJobId}`);
+      // Report Errors if any
+      if (errors.length > 0) {
+        alert(
+          `Conversion Report:\n\nSuccessful: ${successCount}\nFailed: ${
+            errors.length
+          }\n\nErrors:\n${errors.join("\n")}`
+        );
+      }
+
+      // Navigation Logic
+      if (successCount > 0) {
+        if (files.length > 1) {
+          // If we had multiple files, always go to history to see the results
+          router.push("/history");
+        } else if (lastJobId && successCount === 1) {
+          // Single file success
+          router.push(`/preview/${lastJobId}`);
+        }
       }
     } catch (error: any) {
-      console.error("Conversion failed:", error);
-      alert(`${error.message || "Please try again."}`);
+      console.error("Critical conversion error:", error);
+      alert(`${error.message || "An unexpected error occurred."}`);
     } finally {
       setLoading(false);
       setFiles([]);

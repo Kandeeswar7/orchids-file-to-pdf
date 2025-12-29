@@ -28,7 +28,7 @@ interface ConversionLog {
 export default function HistoryPage() {
   const { user, plan, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [history, setHistory] = useState<ConversionLog[]>([]);
+  const [history, setHistory] = useState<any[]>([]); // simplified type
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,25 +45,19 @@ export default function HistoryPage() {
     }
 
     async function fetchHistory() {
-      if (!user || !db) return;
+      if (!user) return;
       try {
-        // Last 5 days calculated on client
-        const fiveDaysAgo = new Date();
-        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+        // Redline Compliance: Read from LocalStorage via JobStore
+        const { JobStore } = await import("@/lib/job-store");
+        const logs = JobStore.getHistory(user.uid);
 
-        const q = query(
-          collection(db, "conversions"),
-          where("uid", "==", user.uid),
-          where("createdAt", ">=", Timestamp.fromDate(fiveDaysAgo)),
-          orderBy("createdAt", "desc"),
-          limit(20)
-        );
-        const snapshot = await getDocs(q);
-        const logs = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as ConversionLog[];
-        setHistory(logs);
+        // Map to display format if needed (JobResult matches fairly well)
+        // Ensure we have correct downloadUrl
+        const displayLogs = logs.map((log) => ({
+          ...log,
+          createdAt: { seconds: log.timestamp / 1000 }, // Mock Firestore-like timestamp for UI compatibility if needed
+        }));
+        setHistory(displayLogs);
       } catch (e) {
         console.error("Error fetching history:", e);
       } finally {
@@ -95,15 +89,20 @@ export default function HistoryPage() {
           <h1 className="text-2xl font-bold">Conversion History</h1>
         </header>
 
+        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs text-amber-500 text-center mb-4">
+          Note: History is stored locally on this device and cleared after 24
+          hours.
+        </div>
+
         <div className="space-y-4">
           {history.length === 0 ? (
             <div className="text-center py-16 bg-white/5 rounded-2xl border border-white/10">
               <Clock className="w-12 h-12 text-gray-500 mx-auto mb-4" />
               <p className="text-gray-400 text-lg">
-                No conversion history found.
+                No recent conversion history found.
               </p>
-              <p className="text-gray-600 text-sm">
-                Your recent conversions will appear here.
+              <p className="text-gray-600 text-sm mt-2">
+                Your converted files will appear here for 24 hours.
               </p>
             </div>
           ) : (
@@ -114,6 +113,7 @@ export default function HistoryPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
                 className="flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-colors"
+                layout
               >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center">
@@ -122,17 +122,13 @@ export default function HistoryPage() {
                   <div>
                     <p className="font-medium text-white">{item.fileName}</p>
                     <p className="text-xs text-gray-500">
-                      {item.createdAt?.seconds
-                        ? new Date(
-                            item.createdAt.seconds * 1000
-                          ).toLocaleString()
-                        : "Just now"}
+                      {new Date(item.timestamp).toLocaleString()}
                     </p>
                   </div>
                 </div>
 
                 <a
-                  href={item.downloadUrl}
+                  href={item.downloadUrl || `/api/convert/download/${item.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"

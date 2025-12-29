@@ -314,15 +314,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           dailyConversionCount: increment(1),
         });
 
-        // If Premium, add to history
+        // If Premium, add to history (LOCAL STORAGE ONLY)
         if (plan === "premium") {
-          await addDoc(collection(db, "conversions"), {
-            uid: user.uid,
-            ...jobData,
-            createdAt: serverTimestamp(),
-            expiresAt: Timestamp.fromMillis(Date.now() + 24 * 60 * 60 * 1000), // 24h
-            downloadUrl: `/api/convert/download/${jobData.jobId}`,
-          });
+          // We do NOT write to "conversions" collection anymore (Architecture Redline)
+          // Instead, we trust the component to call JobStore.set() with persistence enabled
+          // But actually, JobStore needs the downloadUrl which we construct here or in component.
+          // Let's delegate history storage to the component where the blob/result is available,
+          // OR we can store just metadata here if we had the blobUrl (which we don't).
+          // Correction: The `recordConversion` is called by components.
+          // Components already call JobStore.set() for the blob.
+          // We should update the components to pass `uid` to JobStore.set() if premium.
+          // So here in AuthContext, we just handle the daily counter.
         }
       } catch (e) {
         console.warn(
@@ -332,7 +334,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // 3. Persist to LocalStorage (Backup for Free/Offline)
+    // 3. Persist to LocalStorage (Usage Counter Backup)
     try {
       const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
       const key = `converty_usage_${user.uid}_${today}`;
