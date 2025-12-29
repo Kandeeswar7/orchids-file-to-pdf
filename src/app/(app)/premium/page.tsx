@@ -1,10 +1,12 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Star, Zap, Shield, History } from "lucide-react";
+import { Check, Star, Zap, Shield, History, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { PLAN_LIMITS } from "@/config/plans";
+import { isRazorpayConfigured } from "@/lib/razorpay-config";
+import { formatPremiumPrice } from "@/config/pricing";
 
 const features = [
   {
@@ -32,6 +34,7 @@ const features = [
 export default function PremiumPage() {
   const { user, plan } = useAuth();
   const isPremium = plan === "premium";
+  const isRazorpayReady = isRazorpayConfigured();
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white pt-20 pb-12 px-4 sm:px-6 relative overflow-hidden">
@@ -98,7 +101,9 @@ export default function PremiumPage() {
                 Converty Premium
               </h2>
               <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-5xl font-bold text-white">$9.99</span>
+                <span className="text-5xl font-bold text-white">
+                  {formatPremiumPrice()}
+                </span>
                 <span className="text-gray-400">/month</span>
               </div>
 
@@ -131,15 +136,33 @@ export default function PremiumPage() {
                   Current Plan
                 </button>
               ) : (
-                <Link href="/payment">
-                  <button className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-lg hover:shadow-lg hover:shadow-purple-500/25 transition-all transform hover:scale-[1.02]">
-                    Upgrade Now
-                  </button>
-                </Link>
+                <>
+                  {!isRazorpayReady && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-2"
+                    >
+                      <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-amber-400">
+                        Payment system is currently unavailable. Please check back
+                        later.
+                      </p>
+                    </motion.div>
+                  )}
+                  <Link href="/payment">
+                    <button
+                      disabled={!isRazorpayReady}
+                      className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-lg hover:shadow-lg hover:shadow-purple-500/25 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                    >
+                      {isRazorpayReady ? "Upgrade Now" : "Payment Unavailable"}
+                    </button>
+                  </Link>
+                </>
               )}
 
               <p className="text-xs text-center text-gray-500 mt-4">
-                Secure payment via PayPal or Google Pay. Cancel anytime.
+                Secure payment powered by Razorpay. Cancel anytime.
               </p>
             </div>
           </motion.div>
