@@ -34,43 +34,65 @@ export default function PreviewPage({
 
   useEffect(() => {
     // Check client-side store first
-    import("@/lib/job-store").then(({ JobStore }) => {
-      const storedJob = JobStore.get(jobId);
-      if (storedJob) {
-        setJob({
-          id: storedJob.id,
-          status: "completed",
-          progress: 100,
-          resultUrl: storedJob.blobUrl,
-        });
-        return;
-      }
-
-      // Fallback to polling (for legacy/shared links)
-      let intervalId: NodeJS.Timeout;
-
-      const checkStatus = async () => {
-        try {
-          const res = await fetch(`/api/convert/status/${jobId}`);
-          if (!res.ok) throw new Error("Failed to fetch status");
-
-          const data = await res.json();
-          setJob(data);
-
-          if (data.status === "completed" || data.status === "failed") {
-            clearInterval(intervalId);
-          }
-        } catch (err) {
-          console.error("Error polling status:", err);
-          setError("Failed to check conversion status");
+    import("@/lib/job-store")
+      .then(({ JobStore }) => {
+        const blobUrl = JobStore.getBlobUrl(jobId);
+        if (blobUrl) {
+          // We already have a finished job in the client store
+          setJob({
+            id: jobId,
+            status: "completed",
+            progress: 100,
+            resultUrl: blobUrl,
+          });
+          return;
         }
-      };
 
-      checkStatus();
-      intervalId = setInterval(checkStatus, 2000);
+        // Fallback to polling (for legacy/shared links)
+        let intervalId: NodeJS.Timeout;
 
-      return () => clearInterval(intervalId);
-    });
+        const checkStatus = async () => {
+          try {
+            const res = await fetch(`/api/convert/status/${jobId}`);
+            if (!res.ok) throw new Error("Failed to fetch status");
+
+            const data = await res.json();
+
+            // Map backend state → local status without relying on result payload
+            const mappedStatus: JobStatus["status"] =
+              data.state === "completed"
+                ? "completed"
+                : data.state === "failed"
+                ? "failed"
+                : data.state === "processing"
+                ? "processing"
+                : "pending";
+
+            setJob({
+              id: data.id,
+              status: mappedStatus,
+              progress:
+                typeof data.progress === "number" ? data.progress : undefined,
+            });
+
+            if (mappedStatus === "completed" || mappedStatus === "failed") {
+              clearInterval(intervalId);
+            }
+          } catch (err) {
+            console.error("Error polling status:", err);
+            setError("Failed to check conversion status");
+          }
+        };
+
+        checkStatus();
+        intervalId = setInterval(checkStatus, 2000);
+
+        return () => clearInterval(intervalId);
+      })
+      .catch((err) => {
+        console.error("Error initializing preview status:", err);
+        setError("Failed to initialize preview");
+      });
   }, [jobId]);
 
   if (error || job?.status === "failed") {

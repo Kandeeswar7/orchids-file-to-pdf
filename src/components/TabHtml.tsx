@@ -35,10 +35,7 @@ export function TabHtml() {
     if (e.target.files && e.target.files.length > 0) {
       // Enforce limits
       const targetFiles = Array.from(e.target.files);
-      const maxFiles =
-        plan === "premium"
-          ? PLAN_LIMITS.premium.maxBatchSize
-          : PLAN_LIMITS.free.maxBatchSize;
+      const maxFiles = plan === "premium" ? 10 : 1; // Match Word/Excel behavior
 
       // Validation 1: Max Files
       if (targetFiles.length > maxFiles) {
@@ -102,19 +99,15 @@ export function TabHtml() {
               );
             }
 
-            const text = await file.text();
             const fileSize = file.size;
-            const filename = `converted-${file.name}.pdf`;
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("orientation", "portrait");
+            formData.append("pageSize", "A4");
 
             const response = await fetch("/api/convert", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                type: "html",
-                html: text,
-                source: "file",
-                filename: file.name,
-              }),
+              body: formData,
             });
 
             if (!response.ok) {
@@ -135,17 +128,26 @@ export function TabHtml() {
                   if (statusData.state === "completed") {
                     const downloadUrl = `/api/convert/download/${jobId}`;
 
-                    // Store Result
+                    // Pre-fetch blob to store in JobStore for preview (match Word/Excel pattern)
+                    const fileRes = await fetch(downloadUrl);
+                    const blob = await fileRes.blob();
+                    const blobUrl = URL.createObjectURL(blob);
+
                     const { JobStore } = await import("@/lib/job-store");
                     // Persist if Premium
                     const persistenceUid =
                       plan === "premium" && user ? user.uid : undefined;
-                    JobStore.set(jobId, downloadUrl, filename, persistenceUid, {
-                      // We don't have blob here yet unless we fetch it, but URL is enough for history
-                      fileType: "html",
-                      fileSize: fileSize,
-                      downloadUrl,
-                    });
+                    JobStore.set(
+                      jobId,
+                      blobUrl,
+                      `converted-${file.name}.pdf`,
+                      persistenceUid,
+                      {
+                        fileType: "html",
+                        fileSize: fileSize,
+                        downloadUrl,
+                      }
+                    );
 
                     // Record
                     await recordConversion({
