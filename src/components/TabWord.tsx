@@ -27,6 +27,7 @@ export function TabWord() {
   const [loading, setLoading] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitMessage, setLimitMessage] = useState("");
+
   const [options, setOptions] = useState({
     orientation: "portrait",
     pageSize: "A4",
@@ -66,6 +67,7 @@ export function TabWord() {
   };
 
   const removeFile = (index: number) => {
+    if (loading) return;
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -167,6 +169,7 @@ export function TabWord() {
                     fileType: "word",
                     fileSize: file.size,
                   });
+
                   resolve();
                 } else if (statusData.state === "failed") {
                   reject(new Error(`Conversion failed for ${file.name}`));
@@ -199,10 +202,8 @@ export function TabWord() {
       // Navigation Logic
       if (successCount > 0) {
         if (files.length > 1) {
-          // If we had multiple files, always go to history to see the results
           router.push("/history");
         } else if (lastJobId && successCount === 1) {
-          // Single file success
           router.push(`/preview/${lastJobId}`);
         }
       }
@@ -216,7 +217,7 @@ export function TabWord() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 relative">
       {/* Header */}
       <motion.div
         className="space-y-2 flex justify-between items-end"
@@ -258,7 +259,7 @@ export function TabWord() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        whileHover={{ scale: files.length > 0 ? 1 : 1.01 }}
+        whileHover={files.length > 0 ? { scale: 1 } : { scale: 1.01 }}
       >
         <input
           type="file"
@@ -318,6 +319,7 @@ export function TabWord() {
                       e.preventDefault();
                       removeFile(i);
                     }}
+                    disabled={loading}
                     className="p-1 hover:bg-red-500/20 rounded-full text-gray-400 hover:text-red-400 transition-colors"
                     aria-label="Remove file"
                   >

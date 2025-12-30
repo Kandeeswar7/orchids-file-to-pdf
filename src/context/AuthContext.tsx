@@ -79,8 +79,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [plan, setPlan] = useState<"free" | "premium">("free");
   const [dailyUsage, setDailyUsage] = useState(0);
 
+  /*
+   * CHECK AND RESET DAILY USAGE (Idempotent)
+   * This logic ensures reset happens even if the user never reloads the app.
+   */
+  const checkUsageReset = async (uid: string, currentData?: any) => {
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    const lastResetKey = `converty_last_reset_${uid}`;
+    const usageKey = `converty_usage_${uid}`;
+
+    const lastResetDate = localStorage.getItem(lastResetKey);
+
+    // If dates differ, it's a new day => Reset
+    if (lastResetDate !== today) {
+      console.log(
+        `[AuthContext] new day detected (${today}). Resetting usage.`
+      );
+
+      // 1. Reset Local Storage
+      localStorage.setItem(lastResetKey, today);
+      localStorage.setItem(usageKey, "0");
+      setDailyUsage(0);
+
+      // 2. Reset Firestore (Best Effort - for sync)
+      if (db) {
+        try {
+          const userRef = doc(db, "users", uid);
+          await updateDoc(userRef, {
+            dailyConversionCount: 0,
+            lastResetAt: serverTimestamp(),
+          });
+        } catch (e) {
+          // Ignore firestore errors, frontend state rules
+          console.warn("[AuthContext] Firestore reset failed", e);
+        }
+      }
+      return true; // Reset occurred
+    }
+    return false; // No reset needed
+  };
+
   const fetchUserData = async (uid: string) => {
-    if (!db) return;
+    // 1. Run Reset Check First
+    await checkUsageReset(uid);
+
+    if (!db) {
+      // Demo/Offline Mode: Trust Local Storage
+      const usageKey = `converty_usage_${uid}`;
+      const localUsage = parseInt(localStorage.getItem(usageKey) || "0");
+      setDailyUsage(localUsage);
+      setPlan("free"); // Default
+      return;
+    }
+
     try {
       const userRef = doc(db, "users", uid);
       let userDoc = await getDoc(userRef);
@@ -100,45 +151,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const data = userDoc.data();
       if (data) {
-        setPlan((data.plan as "free" | "premium") || "free");
+        let currentPlan = (data.plan as "free" | "premium") || "free";
 
-        // Handle Daily Reset
-        let currentUsage = data.dailyConversionCount || 0;
-        if (data.lastResetAt) {
-          const lastReset = data.lastResetAt.toDate();
-          const now = new Date();
-          const diffHours =
-            (now.getTime() - lastReset.getTime()) / (1000 * 60 * 60);
+        // CHECK PREMIUM EXPIRY
+        if (currentPlan === "premium" && data.premiumExpiresAt) {
+          const expiresAt = new Date(data.premiumExpiresAt).getTime();
+          if (Date.now() > expiresAt) {
+            console.log("[AuthContext] Premium expired. Downgrading to Free.");
+            currentPlan = "free";
 
-          if (diffHours >= 24) {
-            await updateDoc(userRef, {
-              dailyConversionCount: 0,
-              lastResetAt: serverTimestamp(),
-            });
-            currentUsage = 0;
+            // Downgrade in Firestore (Fire & Forget)
+            const userRef = doc(db, "users", uid);
+            updateDoc(userRef, { plan: "free" }).catch((e) =>
+              console.warn("Failed to sync downgrade to Firestore", e)
+            );
           }
         }
-        setDailyUsage(currentUsage);
+
+        setPlan(currentPlan);
+
+        // 2. Sync Usage from Source of Truth
+        // We prefer the MAX of Firestore vs LocalStorage to prevent bypassing limits
+        const dbUsage = data.dailyConversionCount || 0;
+
+        const usageKey = `converty_usage_${uid}`;
+        const localUsage = parseInt(localStorage.getItem(usageKey) || "0");
+
+        const trueUsage = Math.max(dbUsage, localUsage);
+        setDailyUsage(trueUsage);
+
+        // Ensure local storage matches the "true" usage if Firestore was higher
+        if (dbUsage > localUsage) {
+          localStorage.setItem(usageKey, dbUsage.toString());
+        }
       }
     } catch (e) {
       console.error("Error fetching user data:", e);
-      // Fallback to safe defaults but try local storage for usage
+      // Fallback
       setPlan("free");
-      setDailyUsage(0);
-    } finally {
-      // SYNC LOCAL STORAGE (Robustness)
-      // If Firestore is lagging or failed, trust local storage if it's higher
-      try {
-        const today = new Date().toISOString().split("T")[0];
-        const key = `converty_usage_${uid}_${today}`;
-        const localUsage = parseInt(localStorage.getItem(key) || "0");
-
-        setDailyUsage((prev) => {
-          return Math.max(prev, localUsage);
-        });
-      } catch (e) {
-        console.warn("Local storage sync failed", e);
-      }
+      // Trust local storage on error
+      const usageKey = `converty_usage_${uid}`;
+      const localUsage = parseInt(localStorage.getItem(usageKey) || "0");
+      setDailyUsage(localUsage);
     }
   };
 
@@ -182,7 +236,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Real Login
-    await signInWithGoogle();
+    const user = await signInWithGoogle();
+
+    // Fix missing displayName for Google Users (Frontend-Only)
+    if (user && !user.displayName && user.email) {
+      const safeName = user.email.split("@")[0];
+      await updateProfile(user, { displayName: safeName });
+      await user.reload(); // Ensure changes persist
+      setUser({ ...user }); // Update local state immediately
+    }
   };
 
   const handleSignUpWithEmail = async (
@@ -284,9 +346,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const upgradeToPremium = async () => {
     if (!user || !db) return;
     try {
+      const now = new Date();
+      const expiresAt = new Date(now);
+      expiresAt.setMonth(expiresAt.getMonth() + 1); // Exact +1 Month Calendar
+
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         plan: "premium",
+        premiumActivatedAt: now.toISOString(),
+        premiumExpiresAt: expiresAt.toISOString(),
       });
       setPlan("premium");
     } catch (e) {
@@ -303,45 +371,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }) => {
     if (!user) return;
 
-    // 1. Optimistic Local Update (Immediate UI Feeback)
+    // 0. CHECK FOR DAY ROLLOVER BEFORE INCREMENTING
+    await checkUsageReset(user.uid);
+
+    // 1. Optimistic Local Update
     setDailyUsage((prev) => prev + 1);
 
-    // 2. Persist to Firestore (Best Effort)
+    // 2. Persist to LocalStorage (Immediate & Reliable)
+    // Key format: converty_usage_{uid} NOT date-embedded key to avoid abandonment
+    const usageKey = `converty_usage_${user.uid}`;
+    try {
+      const current = parseInt(localStorage.getItem(usageKey) || "0");
+      localStorage.setItem(usageKey, (current + 1).toString());
+    } catch (e) {
+      console.error("LocalStorage error:", e);
+    }
+
+    // 3. Persist to Firestore (Best Effort)
     if (db) {
       try {
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, {
           dailyConversionCount: increment(1),
         });
-
-        // If Premium, add to history (LOCAL STORAGE ONLY)
-        if (plan === "premium") {
-          // We do NOT write to "conversions" collection anymore (Architecture Redline)
-          // Instead, we trust the component to call JobStore.set() with persistence enabled
-          // But actually, JobStore needs the downloadUrl which we construct here or in component.
-          // Let's delegate history storage to the component where the blob/result is available,
-          // OR we can store just metadata here if we had the blobUrl (which we don't).
-          // Correction: The `recordConversion` is called by components.
-          // Components already call JobStore.set() for the blob.
-          // We should update the components to pass `uid` to JobStore.set() if premium.
-          // So here in AuthContext, we just handle the daily counter.
-        }
       } catch (e) {
         console.warn(
           "[AuthContext] Firestore update failed, falling back to local storage:",
           e
         );
       }
-    }
-
-    // 3. Persist to LocalStorage (Usage Counter Backup)
-    try {
-      const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-      const key = `converty_usage_${user.uid}_${today}`;
-      const current = parseInt(localStorage.getItem(key) || "0");
-      localStorage.setItem(key, (current + 1).toString());
-    } catch (e) {
-      console.error("LocalStorage error:", e);
     }
   };
 
