@@ -96,6 +96,24 @@ export const JobStore = {
       return [];
     }
   },
+
+  // Delete a job from history and memory
+  delete: (id: string, uid?: string) => {
+    // 1. Remove from in-memory blobs
+    activeSessionBlobs.delete(id);
+
+    // 2. Remove from LocalStorage if uid provided
+    if (uid) {
+      try {
+        const key = `${STORAGE_KEY_PREFIX}${uid}`;
+        const existing = JSON.parse(localStorage.getItem(key) || "[]");
+        const updated = existing.filter((item: JobResult) => item.id !== id);
+        localStorage.setItem(key, JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Failed to delete from history", e);
+      }
+    }
+  },
 };
 
 // Global in-memory map for the current session's blob URLs (not persisted)

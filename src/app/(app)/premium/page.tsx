@@ -1,12 +1,22 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Check, Star, Zap, Shield, History, AlertCircle } from "lucide-react";
+import {
+  Check,
+  Star,
+  Zap,
+  Shield,
+  History,
+  AlertCircle,
+  Loader2,
+} from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { PLAN_LIMITS } from "@/config/plans";
 import { isRazorpayConfigured } from "@/lib/razorpay-config";
 import { formatPremiumPrice } from "@/config/pricing";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const features = [
   {
@@ -32,9 +42,26 @@ const features = [
 ];
 
 export default function PremiumPage() {
-  const { user, plan } = useAuth();
+  const { user, plan, loading: authLoading } = useAuth();
+  const router = useRouter();
   const isPremium = plan === "premium";
   const isRazorpayReady = isRazorpayConfigured();
+  const [loading, setLoading] = useState(true);
+
+  // Protect Route
+  useEffect(() => {
+    if (!authLoading) {
+      setLoading(false);
+    }
+  }, [authLoading]);
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center text-white">
+        <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white pt-20 pb-12 px-4 sm:px-6 relative overflow-hidden">
@@ -145,8 +172,8 @@ export default function PremiumPage() {
                     >
                       <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
                       <p className="text-xs text-amber-400">
-                        Payment system is currently unavailable. Please check back
-                        later.
+                        Payment system is currently unavailable. Please check
+                        back later.
                       </p>
                     </motion.div>
                   )}

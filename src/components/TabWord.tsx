@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Upload,
@@ -14,10 +14,11 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { PLAN_LIMITS } from "@/config/plans";
 import { LimitModal } from "./LimitModal";
-import { GoogleDrivePicker } from "./GoogleDrivePicker";
+import { ConversionErrorView } from "./ConversionErrorView";
 
 export function TabWord() {
   const router = useRouter();
@@ -27,6 +28,7 @@ export function TabWord() {
   const [loading, setLoading] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitMessage, setLimitMessage] = useState("");
+  const [conversionFailed, setConversionFailed] = useState(false); // NEW Error State
 
   const [options, setOptions] = useState({
     orientation: "portrait",
@@ -37,7 +39,7 @@ export function TabWord() {
     // Filter for valid types
     const validFiles = newFiles.filter((f) => f.name.match(/\.(docx|doc)$/i));
     if (validFiles.length < newFiles.length) {
-      alert(
+      toast.error(
         "Some files were rejected. Only Word documents (.doc, .docx) are allowed."
       );
     }
@@ -71,6 +73,16 @@ export function TabWord() {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setLoading(false);
+    toast.info("Conversion cancelled");
+  };
+
   const handleConvert = async () => {
     if (files.length === 0) return;
 
@@ -89,14 +101,22 @@ export function TabWord() {
     }
 
     setLoading(true);
+    setConversionFailed(false);
+
+    // Create new abort controller for this batch
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     let successCount = 0;
     const errors: string[] = [];
+    let jobIds: string[] = [];
     let lastJobId = "";
 
     try {
       // Sequential Conversion Loop
       for (const file of files) {
+        if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+
         try {
           // Size Check per file
           const sizeMB = file.size / (1024 * 1024);
@@ -117,6 +137,7 @@ export function TabWord() {
           const res = await fetch("/api/convert", {
             method: "POST",
             body: formData,
+            signal,
           });
 
           if (!res.ok) {
@@ -125,13 +146,22 @@ export function TabWord() {
           }
 
           const { jobId } = await res.json();
+          jobIds.push(jobId);
           lastJobId = jobId;
 
           // 3. Poll for Status
           await new Promise<void>((resolve, reject) => {
             const checkStatus = async () => {
+              // Ensure we check signal inside polling too
+              if (signal.aborted) {
+                reject(new DOMException("Aborted", "AbortError"));
+                return;
+              }
+
               try {
-                const statusRes = await fetch(`/api/convert/status/${jobId}`);
+                const statusRes = await fetch(`/api/convert/status/${jobId}`, {
+                  signal,
+                });
                 const statusData = await statusRes.json();
 
                 if (statusData.state === "completed") {
@@ -141,7 +171,7 @@ export function TabWord() {
                     `/api/convert/download/${jobId}`;
 
                   // Pre-fetch blob to store in JobStore for preview
-                  const fileRes = await fetch(downloadUrl);
+                  const fileRes = await fetch(downloadUrl, { signal });
                   const blob = await fileRes.blob();
                   const blobUrl = URL.createObjectURL(blob);
 
@@ -185,36 +215,80 @@ export function TabWord() {
 
           successCount++;
         } catch (err: any) {
+          if (err.name === "AbortError") throw err; // Propagate abort up
           console.error(`Failed to convert ${file.name}`, err);
           errors.push(`${file.name}: ${err.message}`);
         }
       }
 
-      // Report Errors if any
-      if (errors.length > 0) {
-        alert(
-          `Conversion Report:\n\nSuccessful: ${successCount}\nFailed: ${
-            errors.length
-          }\n\nErrors:\n${errors.join("\n")}`
-        );
+      // Report Errors if any (and not aborted)
+      if (errors.length > 0 && !signal.aborted) {
+        if (successCount === 0) {
+          setConversionFailed(true);
+        } else {
+          alert(
+            `Conversion Report:\n\nSuccessful: ${successCount}\nFailed: ${
+              errors.length
+            }\n\nErrors:\n${errors.join("\n")}`
+          );
+        }
       }
 
       // Navigation Logic
-      if (successCount > 0) {
-        if (files.length > 1) {
-          router.push("/history");
+      if (successCount > 0 && !signal.aborted) {
+        if (jobIds.length > 1) {
+          const firstId = jobIds[0];
+          const allJobs = jobIds.join(",");
+          router.push(
+            `/preview/${firstId}?jobs=${encodeURIComponent(allJobs)}&index=0`
+          );
         } else if (lastJobId && successCount === 1) {
           router.push(`/preview/${lastJobId}`);
         }
       }
     } catch (error: any) {
+      if (error.name === "AbortError") {
+        console.log("Conversion aborted by user");
+        return; // Exit cleanly
+      }
       console.error("Critical conversion error:", error);
-      alert(`${error.message || "An unexpected error occurred."}`);
+      setConversionFailed(true);
     } finally {
-      setLoading(false);
-      setFiles([]);
+      if (!abortControllerRef.current?.signal.aborted) {
+        setLoading(false);
+        // Only clear files if NOT failing (to allow retry)
+        // Checks successCount to decide.
+        if (successCount > 0 && successCount === files.length) {
+          setFiles([]);
+        }
+      }
     }
   };
+
+  if (conversionFailed) {
+    return (
+      <ConversionErrorView
+        fileType="word"
+        fileName={files.length === 1 ? files[0].name : undefined}
+        onRetry={() => {
+          setConversionFailed(false);
+          // Small timeout to allow state update before re-running?
+          // Or just call handleConvert directly?
+          // Better to perhaps just show the form again with files populated so user can click convert?
+          // User requirement: "Retry Word to PDF (goes back to conversion tab)"
+          // The prompt says "Primary CTA: 'Retry Word to PDF' (goes back to conversion tab)"
+          // This implies going back to the state where they can click Convert or modify options.
+          // But "Retry" usually means "Try again immediately".
+          // Let's assume it means "Go back to the UI so I can try again".
+          // So just unsetting conversionFailed does that, as files are still there.
+        }}
+        onUploadAnother={() => {
+          setConversionFailed(false);
+          setFiles([]);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-8 relative">
@@ -234,10 +308,6 @@ export function TabWord() {
             Transform Word documents into professional PDFs
           </p>
         </div>
-        <GoogleDrivePicker
-          allowedExtensions={["docx", "doc"]}
-          onPick={(newFile) => handleFilesAdded([newFile])}
-        />
       </motion.div>
 
       {/* File Upload Area */}
@@ -410,44 +480,62 @@ export function TabWord() {
       />
 
       {/* Convert Button */}
-      <motion.button
-        disabled={files.length === 0 || loading}
-        onClick={handleConvert}
-        className={cn(
-          "w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2.5 transition-all duration-300 focus-ring",
-          files.length > 0 && !loading
-            ? "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/30"
-            : "bg-white/5 text-gray-500 cursor-not-allowed"
+      {/* Action Buttons */}
+      <div className="flex gap-4">
+        {loading && (
+          <motion.button
+            onClick={handleCancel}
+            className="flex-shrink-0 px-6 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all focus-ring"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+          >
+            <X className="w-5 h-5" />
+            <span>Cancel</span>
+          </motion.button>
         )}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        whileHover={
-          files.length > 0 && !loading
-            ? { scale: 1.02, boxShadow: "0 20px 40px rgba(59, 130, 246, 0.4)" }
-            : {}
-        }
-        whileTap={files.length > 0 && !loading ? { scale: 0.98 } : {}}
-      >
-        {loading ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            <span>
-              Processing {files.length} File{files.length > 1 ? "s" : ""}...
-            </span>
-          </>
-        ) : (
-          <>
-            <span>
-              Convert{" "}
-              {files.length > 0
-                ? `${files.length} File${files.length > 1 ? "s" : ""}`
-                : "to PDF"}
-            </span>
-            <ArrowRight className="w-5 h-5" />
-          </>
-        )}
-      </motion.button>
+
+        <motion.button
+          disabled={files.length === 0 || loading}
+          onClick={handleConvert}
+          className={cn(
+            "flex-1 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2.5 transition-all duration-300 focus-ring",
+            files.length > 0 && !loading
+              ? "bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white shadow-lg shadow-blue-900/30"
+              : "bg-white/5 text-gray-500 cursor-not-allowed"
+          )}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          whileHover={
+            files.length > 0 && !loading
+              ? {
+                  scale: 1.02,
+                  boxShadow: "0 20px 40px rgba(59, 130, 246, 0.4)",
+                }
+              : {}
+          }
+          whileTap={files.length > 0 && !loading ? { scale: 0.98 } : {}}
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>
+                Processing {files.length} File{files.length > 1 ? "s" : ""}...
+              </span>
+            </>
+          ) : (
+            <>
+              <span>
+                Convert{" "}
+                {files.length > 0
+                  ? `${files.length} File${files.length > 1 ? "s" : ""}`
+                  : "to PDF"}
+              </span>
+              <ArrowRight className="w-5 h-5" />
+            </>
+          )}
+        </motion.button>
+      </div>
     </div>
   );
 }

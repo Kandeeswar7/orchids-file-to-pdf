@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Download,
   ExternalLink,
   ArrowLeft,
+  ArrowRight,
   Loader2,
   AlertCircle,
   FileText,
   CheckCircle2,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -29,8 +33,64 @@ export default function PreviewPage({
   params: Promise<{ jobId: string }>;
 }) {
   const { jobId } = use(params);
+  const searchParams = useSearchParams();
   const [job, setJob] = useState<JobStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Multi-file Logic (New Bidirectional)
+  const jobsParam = searchParams.get("jobs") || "";
+  const jobs = jobsParam ? jobsParam.split(",") : [];
+
+  // Also support legacy queue param for backward compat if needed (optional)
+  // const queueParam = searchParams.get("queue");
+  // ... but prefer new system
+
+  const rawIndex = parseInt(searchParams.get("index") || "0", 10);
+  const currentIndex = isNaN(rawIndex) ? 0 : rawIndex;
+
+  const total = jobs.length || 1;
+  const currentDisplayIndex = currentIndex + 1;
+
+  const prevId = currentIndex > 0 ? jobs[currentIndex - 1] : null;
+  const nextId = currentIndex < jobs.length - 1 ? jobs[currentIndex + 1] : null;
+
+  const { user } = useAuth(); // Need user for Deletion
+  const router = useRouter(); // Need router for navigation
+
+  const handleRemove = async () => {
+    if (!jobId) return;
+
+    // 1. Delete from Store
+    const { JobStore } = await import("@/lib/job-store");
+    JobStore.delete(jobId, user?.uid);
+
+    // 2. Calculate New State
+    const newJobs = jobs.filter((id) => id !== jobId);
+
+    if (newJobs.length === 0) {
+      // All deleted
+      router.push("/convert");
+      return;
+    }
+
+    // Determine where to go
+    // If we are at the end, go to prev. Else go to next (which is now at currentIndex)
+    let newIndex = currentIndex;
+    let nextDestId = "";
+
+    if (newIndex >= newJobs.length) {
+      newIndex = newJobs.length - 1;
+    }
+    nextDestId = newJobs[newIndex];
+
+    // 3. Redirect
+    const newJobsStr = newJobs.join(",");
+    router.push(
+      `/preview/${nextDestId}?jobs=${encodeURIComponent(
+        newJobsStr
+      )}&index=${newIndex}`
+    );
+  };
 
   useEffect(() => {
     // Check client-side store first
@@ -247,8 +307,60 @@ export default function PreviewPage({
           <span className="font-medium">Back to Converter</span>
         </Link>
 
+        {total > 1 && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-full border border-white/10">
+            <span className="text-xs font-bold text-white uppercase tracking-wider">
+              File {currentDisplayIndex} of {total}
+            </span>
+          </div>
+        )}
+
         {/* Action Buttons */}
-        <div className="flex gap-3">
+        <div className="flex gap-2">
+          {/* Previous */}
+          {prevId && (
+            <Link
+              href={`/preview/${prevId}?jobs=${encodeURIComponent(
+                jobsParam
+              )}&index=${currentIndex - 1}`}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl text-sm font-medium transition-all focus-ring"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Prev</span>
+            </Link>
+          )}
+
+          {/* Remove */}
+          <button
+            onClick={handleRemove}
+            className="flex items-center gap-2 px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl text-sm font-medium transition-all focus-ring"
+            title="Remove file"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+
+          {/* Next / Finish */}
+          {nextId ? (
+            <Link
+              href={`/preview/${nextId}?jobs=${encodeURIComponent(
+                jobsParam
+              )}&index=${currentIndex + 1}`}
+              className="flex items-center gap-2 px-6 py-2.5 bg-white text-black rounded-xl text-sm font-bold hover:bg-gray-200 transition-all focus-ring"
+            >
+              <span className="hidden sm:inline">Next File</span>
+              <span className="sm:hidden">Next</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          ) : total > 1 ? (
+            <Link
+              href="/history"
+              className="flex items-center gap-2 px-6 py-2.5 bg-white text-black rounded-xl text-sm font-bold hover:bg-gray-200 transition-all focus-ring"
+            >
+              <span>Finish</span>
+              <CheckCircle2 className="w-4 h-4" />
+            </Link>
+          ) : null}
+
           <motion.a
             href={downloadUrl}
             target="_blank"

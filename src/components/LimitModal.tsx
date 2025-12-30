@@ -1,8 +1,9 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Crown, X } from "lucide-react";
+import { Lock, Crown, X, LogIn } from "lucide-react";
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
 
 interface LimitModalProps {
   isOpen: boolean;
@@ -11,6 +12,8 @@ interface LimitModalProps {
 }
 
 export function LimitModal({ isOpen, onClose, message }: LimitModalProps) {
+  const { user } = useAuth();
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -50,12 +53,30 @@ export function LimitModal({ isOpen, onClose, message }: LimitModalProps) {
               <p className="text-gray-400 text-sm leading-relaxed">{message}</p>
 
               <div className="w-full pt-4">
-                <Link
-                  href="/premium"
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-sm shadow-lg shadow-amber-900/20 hover:shadow-amber-900/40 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
-                >
-                  <Crown className="w-4 h-4" /> Upgrade to Premium
-                </Link>
+                {user ? (
+                  <Link
+                    href="/premium"
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold text-sm shadow-lg shadow-amber-900/20 hover:shadow-amber-900/40 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Crown className="w-4 h-4" /> Upgrade to Premium
+                  </Link>
+                ) : (
+                  <div className="space-y-3">
+                    <Link
+                      href="/signup"
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm shadow-lg hover:shadow-blue-900/40 hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                    >
+                      <Crown className="w-4 h-4" /> Sign Up to Upgrade
+                    </Link>
+                    <Link
+                      href="/login"
+                      className="w-full py-3 rounded-xl bg-white/5 border border-white/10 text-white font-bold text-sm hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                    >
+                      <LogIn className="w-4 h-4" /> Log In
+                    </Link>
+                  </div>
+                )}
+
                 <button
                   onClick={onClose}
                   className="w-full mt-3 py-2 text-sm text-gray-500 hover:text-white transition-colors"

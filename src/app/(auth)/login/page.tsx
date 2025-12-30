@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -9,6 +9,13 @@ import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectParams = searchParams.get("redirect");
+
+  // Prevent loop: If redirect is /login, ignore it
+  const redirectTarget =
+    redirectParams && redirectParams !== "/login" ? redirectParams : "/convert";
+
   const { signInWithGoogle, signInWithEmail } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -17,9 +24,17 @@ export default function LoginPage() {
 
   const checkVerification = (user: any) => {
     if (user && !user.emailVerified) {
+      // Check if google user (always verified)
+      const isGoogle = user.providerData?.some(
+        (p: any) => p.providerId === "google.com"
+      );
+      if (isGoogle) {
+        router.push(redirectTarget);
+        return;
+      }
       router.push("/verify-email");
     } else {
-      router.push("/convert");
+      router.push(redirectTarget);
     }
   };
 

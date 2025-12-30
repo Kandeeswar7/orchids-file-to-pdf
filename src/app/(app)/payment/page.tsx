@@ -2,9 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { motion } from "framer-motion";
-import { Check, Shield, Lock, CreditCard, Loader2, AlertCircle } from "lucide-react";
+import {
+  Check,
+  Shield,
+  Lock,
+  CreditCard,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -35,6 +43,13 @@ export default function PaymentPage() {
   const [razorpayError, setRazorpayError] = useState<string | null>(null);
   const isConfigured = isRazorpayConfigured();
 
+  // Protect Route with Return URL
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login?redirect=/payment");
+    }
+  }, [user, loading, router]);
+
   // Load Razorpay script dynamically
   useEffect(() => {
     if (!isConfigured) {
@@ -57,7 +72,9 @@ export default function PaymentPage() {
       setRazorpayError(null);
     };
     script.onerror = () => {
-      setRazorpayError("Failed to load Razorpay checkout. Please refresh the page.");
+      setRazorpayError(
+        "Failed to load Razorpay checkout. Please refresh the page."
+      );
       setRazorpayLoaded(false);
     };
 
@@ -83,7 +100,7 @@ export default function PaymentPage() {
     }
 
     if (!termsAccepted) {
-      alert("Please accept the terms and conditions to proceed.");
+      toast.error("Please accept the terms and conditions to proceed.");
       return;
     }
 
@@ -107,8 +124,7 @@ export default function PaymentPage() {
       if (!orderResponse.ok) {
         const errorData = await orderResponse.json().catch(() => ({}));
         throw new Error(
-          errorData.error ||
-            "Failed to create payment order. Please try again."
+          errorData.error || "Failed to create payment order. Please try again."
         );
       }
 
@@ -274,7 +290,9 @@ export default function PaymentPage() {
             >
               <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-amber-400">
-                <p className="font-semibold mb-1">Payment System Not Configured</p>
+                <p className="font-semibold mb-1">
+                  Payment System Not Configured
+                </p>
                 <p className="text-amber-300/80">
                   Razorpay payment integration is not available. Please contact
                   support or check your configuration.

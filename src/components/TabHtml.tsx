@@ -11,12 +11,15 @@ import {
   FileType,
   Sparkles,
   Lock,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { PLAN_LIMITS } from "@/config/plans";
 import { LimitModal } from "./LimitModal";
+import { ConversionErrorView } from "./ConversionErrorView";
 
 type SubTab = "file" | "code";
 
@@ -28,6 +31,7 @@ export function TabHtml() {
   const [isConverting, setIsConverting] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitMessage, setLimitMessage] = useState("");
+  const [conversionFailed, setConversionFailed] = useState(false);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,7 +43,7 @@ export function TabHtml() {
 
       // Validation 1: Max Files
       if (targetFiles.length > maxFiles) {
-        alert(
+        toast.error(
           plan === "free"
             ? "Free users can only convert 1 file at a time. Upgrade for batch processing!"
             : `You can only convert up to ${maxFiles} files at once.`
@@ -52,12 +56,24 @@ export function TabHtml() {
         (f) => !f.name.match(/\.(html|htm)$/i)
       );
       if (invalidFiles.length > 0) {
-        alert("Invalid file type. Please upload HTML files (.html, .htm).");
+        toast.error(
+          "Invalid file type. Please upload HTML files (.html, .htm)."
+        );
         return;
       }
 
       setFiles(targetFiles);
     }
+  };
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setIsConverting(false);
+    toast.info("Conversion cancelled");
   };
 
   const handleConvert = async () => {
@@ -79,15 +95,23 @@ export function TabHtml() {
       return;
     }
 
-    setIsConverting(true); // FIX A: Explicit State
+    setIsConverting(true);
+    setConversionFailed(false);
+
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
     let successCount = 0;
     const errors: string[] = [];
     let lastJobId = "";
 
     try {
       if (subTab === "file") {
-        // Sequential Loop (FIX B: Multi-File Support)
+        // Sequential Loop
         for (const file of files) {
+          if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+
           try {
             // Check File Size
             const sizeMB = file.size / (1024 * 1024);
@@ -108,6 +132,7 @@ export function TabHtml() {
             const response = await fetch("/api/convert", {
               method: "POST",
               body: formData,
+              signal,
             });
 
             if (!response.ok) {
@@ -118,18 +143,26 @@ export function TabHtml() {
             const { jobId } = await response.json();
             lastJobId = jobId;
 
-            // Poll for Status (FIX A: Await Promise correctly)
+            // Poll for Status
             await new Promise<void>((resolve, reject) => {
               const checkStatus = async () => {
+                if (signal.aborted) {
+                  reject(new DOMException("Aborted", "AbortError"));
+                  return;
+                }
+
                 try {
-                  const statusRes = await fetch(`/api/convert/status/${jobId}`);
+                  const statusRes = await fetch(
+                    `/api/convert/status/${jobId}`,
+                    { signal }
+                  );
                   const statusData = await statusRes.json();
 
                   if (statusData.state === "completed") {
                     const downloadUrl = `/api/convert/download/${jobId}`;
 
-                    // Pre-fetch blob to store in JobStore for preview (match Word/Excel pattern)
-                    const fileRes = await fetch(downloadUrl);
+                    // Pre-fetch blob
+                    const fileRes = await fetch(downloadUrl, { signal });
                     const blob = await fileRes.blob();
                     const blobUrl = URL.createObjectURL(blob);
 
@@ -171,11 +204,14 @@ export function TabHtml() {
 
             successCount++;
           } catch (e: any) {
+            if (e.name === "AbortError") throw e;
             console.error(`Failed to convert ${file.name}`, e);
             errors.push(`${file.name}: ${e.message}`);
           }
         }
       } else {
+        if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+
         // CODE MODE (Single)
         const sizeMB = code.length / (1024 * 1024);
         if (sizeMB > limits.maxFileSizeMB) {
@@ -183,7 +219,7 @@ export function TabHtml() {
             `Code content too large. Limit is ${limits.maxFileSizeMB}MB.`
           );
           setShowLimitModal(true);
-          setIsConverting(false); // Reset here as we return early
+          setIsConverting(false);
           return;
         }
 
@@ -195,6 +231,7 @@ export function TabHtml() {
             html: code,
             source: "code",
           }),
+          signal,
         });
 
         if (!response.ok) throw new Error("Conversion failed");
@@ -204,8 +241,15 @@ export function TabHtml() {
         // Poll for Status
         await new Promise<void>((resolve, reject) => {
           const checkStatus = async () => {
+            if (signal.aborted) {
+              reject(new DOMException("Aborted", "AbortError"));
+              return;
+            }
+
             try {
-              const statusRes = await fetch(`/api/convert/status/${jobId}`);
+              const statusRes = await fetch(`/api/convert/status/${jobId}`, {
+                signal,
+              });
               const statusData = await statusRes.json();
 
               if (statusData.state === "completed") {
@@ -214,9 +258,26 @@ export function TabHtml() {
                 const persistenceUid =
                   plan === "premium" && user ? user.uid : undefined;
 
+                // Pre-fetch blob for consistency? Maybe not strictly required for code snippet but good for uniformity.
+                // Or just use downloadUrl logic. The existing code didn't pre-fetch blob for code mode?
+                // Wait, it did JobStore.set with downloadUrl as blobUrl (which is wrong if it's not a blobUrl).
+                // Let's check the old code.
+                // Old code: JobStore.set(jobId, downloadUrl, ...) -> This sets local blob url to the server url.
+                // The preview page tries to use it as an iframe src. That works if it's a valid URL.
+                // But for offline/fast preview we prefer blobs.
+                // I'll stick to minimum changes to avoid regression, but pass signal.
+
+                // Wait, let's look at `TabWord` implementation again. It fetches blob.
+                // Let's do the same here for consistency? Or stick to old implementation?
+                // The old implementation for code mode: `JobStore.set(..., downloadUrl, ...)`
+                // The new `JobStore` expects `blobUrl` as 2nd arg.
+                // Let's stick to what was there but add signal checking.
+
                 JobStore.set(
                   jobId,
-                  downloadUrl,
+                  downloadUrl, // This might be an issue if PreviewPage expects a blob: logic?
+                  // PreviewPage does: const downloadUrl = job?.resultUrl || `/api/convert/download/${jobId}`;
+                  // If we pass /api/... it works.
                   "document.pdf",
                   persistenceUid,
                   {
@@ -248,31 +309,75 @@ export function TabHtml() {
       }
 
       // Report Errors
-      if (errors.length > 0) {
-        alert(
-          `Conversion Report:\n\nSuccessful: ${successCount}\nFailed: ${
-            errors.length
-          }\n\nErrors:\n${errors.join("\n")}`
-        );
+      if (errors.length > 0 && !signal.aborted) {
+        if (successCount === 0) {
+          setConversionFailed(true);
+        } else {
+          toast.error(`Errors:\n${errors.join("\n")}`);
+        }
       }
 
-      // Navigation (FIX C: Redirect logic)
-      if (successCount > 0) {
+      // Navigation
+      if (successCount > 0 && !signal.aborted) {
         if (successCount > 1 || (subTab === "file" && files.length > 1)) {
           router.push("/history");
         } else if (lastJobId) {
           router.push(`/preview/${lastJobId}`);
         }
-      } else {
-        // Failed all
-        setIsConverting(false); // Only reset if we are NOT navigating away
       }
+      // Note: No else block needed as finally handles cleanup or error block handles state
     } catch (error: any) {
+      if (error.name === "AbortError") {
+        console.log("Conversion cancelled");
+        return;
+      }
       console.error("Error converting HTML:", error);
-      alert(`${error.message || "Conversion failed. Please try again."}`);
-      setIsConverting(false);
+      // Determine if we should show error page
+      setConversionFailed(true);
+      // toast.error(`${error.message || "Conversion failed. Please try again."}`);
+    } finally {
+      if (!abortControllerRef.current?.signal.aborted) {
+        setIsConverting(false);
+        // Only clear inputs if successful?
+        // If failed, we want to retry.
+        if (successCount > 0) {
+          if (subTab === "file") setFiles([]);
+          // if code mode, maybe allow them to keep code?
+          // Let's stick to previous behavior if possible, but previous behavior was implicit?
+          // Actually previous behavior didn't clear files in finally block?
+          // Let's check view_file.
+          // It didn't have a finally block!
+          // It relies on setIsConverting(false) in catch or else.
+          // So I am adding finally block.
+          // I should be careful.
+        }
+      }
     }
   };
+
+  if (conversionFailed) {
+    return (
+      <ConversionErrorView
+        fileType="html"
+        fileName={
+          subTab === "file" && files.length === 1 ? files[0].name : undefined
+        }
+        onRetry={() => {
+          setConversionFailed(false);
+          setIsConverting(false); // Reset loading state
+        }}
+        onUploadAnother={() => {
+          setConversionFailed(false);
+          setIsConverting(false);
+          if (subTab === "file") setFiles([]); // Clear files for fresh upload
+          // if code? maybe don't clear code on 'Upload Another' (which implies file)
+          // But if they want to clear code, they can just delete it or refresh.
+          // Let's assume onUploadAnother in HTML context means reset everything.
+          if (subTab === "code") setCode("");
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -452,51 +557,66 @@ export function TabHtml() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
       >
-        <motion.button
-          onClick={handleConvert}
-          disabled={
-            isConverting ||
-            (subTab === "file" && files.length === 0) ||
-            (subTab === "code" && !code)
-          }
-          className={cn(
-            "w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2.5 transition-all duration-300 focus-ring",
-            (subTab === "file" && files.length === 0) ||
-              (subTab === "code" && !code) ||
-              isConverting
-              ? "bg-white/5 text-gray-500 cursor-not-allowed"
-              : "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-900/30"
+        {/* Action Buttons */}
+        <div className="flex gap-4">
+          {isConverting && (
+            <motion.button
+              onClick={handleCancel}
+              className="flex-shrink-0 px-6 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 bg-red-500/10 text-red-400 hover:bg-red-500/20 hover:text-red-300 transition-all focus-ring"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+            >
+              <X className="w-5 h-5" />
+              <span>Cancel</span>
+            </motion.button>
           )}
-          whileHover={
-            !isConverting &&
-            ((subTab === "file" && files.length > 0) ||
-              (subTab === "code" && code))
-              ? {
-                  scale: 1.02,
-                  boxShadow: "0 20px 40px rgba(249, 115, 22, 0.4)",
-                }
-              : {}
-          }
-          whileTap={
-            !isConverting &&
-            ((subTab === "file" && files.length > 0) ||
-              (subTab === "code" && code))
-              ? { scale: 0.98 }
-              : {}
-          }
-        >
-          {isConverting ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Processing...</span>
-            </>
-          ) : (
-            <>
-              <span>Convert to PDF</span>
-              <ArrowRight className="w-5 h-5" />
-            </>
-          )}
-        </motion.button>
+
+          <motion.button
+            onClick={handleConvert}
+            disabled={
+              isConverting ||
+              (subTab === "file" && files.length === 0) ||
+              (subTab === "code" && !code)
+            }
+            className={cn(
+              "flex-1 py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2.5 transition-all duration-300 focus-ring",
+              (subTab === "file" && files.length === 0) ||
+                (subTab === "code" && !code) ||
+                isConverting
+                ? "bg-white/5 text-gray-500 cursor-not-allowed"
+                : "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-900/30"
+            )}
+            whileHover={
+              !isConverting &&
+              ((subTab === "file" && files.length > 0) ||
+                (subTab === "code" && code))
+                ? {
+                    scale: 1.02,
+                    boxShadow: "0 20px 40px rgba(249, 115, 22, 0.4)",
+                  }
+                : {}
+            }
+            whileTap={
+              !isConverting &&
+              ((subTab === "file" && files.length > 0) ||
+                (subTab === "code" && code))
+                ? { scale: 0.98 }
+                : {}
+            }
+          >
+            {isConverting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                <span>Convert to PDF</span>
+                <ArrowRight className="w-5 h-5" />
+              </>
+            )}
+          </motion.button>
+        </div>
       </motion.div>
       <LimitModal
         isOpen={showLimitModal}
