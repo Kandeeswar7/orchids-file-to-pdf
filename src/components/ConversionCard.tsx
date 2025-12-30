@@ -2,17 +2,16 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileSpreadsheet, FileCode, Globe, FileText } from "lucide-react";
+import { FileSpreadsheet, FileCode, FileText } from "lucide-react";
 import { TabExcel } from "./TabExcel";
 import { TabWord } from "./TabWord";
 import { TabHtml } from "./TabHtml";
-import { TabUrl } from "./TabUrl";
 import { cn } from "@/lib/utils";
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 
-type Tab = "word" | "excel" | "html" | "url";
+type Tab = "word" | "excel" | "html";
 
 export function ConversionCard() {
   const router = useRouter();
@@ -21,7 +20,7 @@ export function ConversionCard() {
 
   const getInitialTab = (): Tab => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["word", "excel", "html", "url"].includes(tabParam)) {
+    if (tabParam && ["word", "excel", "html"].includes(tabParam)) {
       return tabParam as Tab;
     }
     return "word";
@@ -32,7 +31,7 @@ export function ConversionCard() {
   // Sync state with URL changes (e.g. back button)
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["word", "excel", "html", "url"].includes(tabParam)) {
+    if (tabParam && ["word", "excel", "html"].includes(tabParam)) {
       setActiveTab(tabParam as Tab);
     }
   }, [searchParams]);
@@ -68,14 +67,6 @@ export function ConversionCard() {
       color: "text-orange-400",
       gradientFrom: "from-orange-500",
       gradientTo: "to-red-600",
-    },
-    {
-      id: "url",
-      label: "URL",
-      icon: Globe,
-      color: "text-blue-400",
-      gradientFrom: "from-blue-500",
-      gradientTo: "to-cyan-600",
     },
   ] as const;
 
@@ -200,7 +191,6 @@ export function ConversionCard() {
                   {activeTab === "word" && <TabWord />}
                   {activeTab === "excel" && <TabExcel />}
                   {activeTab === "html" && <TabHtml />}
-                  {activeTab === "url" && <TabUrl />}
                 </motion.div>
               </AnimatePresence>
             </div>
