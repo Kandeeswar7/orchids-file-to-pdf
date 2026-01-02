@@ -12,6 +12,7 @@ import {
   CreditCard,
   Loader2,
   AlertCircle,
+  ArrowLeft,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -41,6 +42,7 @@ export default function PaymentPage() {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [razorpayError, setRazorpayError] = useState<string | null>(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const isConfigured = isRazorpayConfigured();
 
   // Protect Route with Return URL
@@ -145,13 +147,12 @@ export default function PaymentPage() {
           try {
             // Update user plan in Firestore
             await upgradeToPremium();
-            // Redirect to dashboard with success
-            router.push("/dashboard?upgraded=true");
+            setPaymentSuccess(true); // Show Success UI
+            setLoading(false);
           } catch (error) {
-            console.error("Error upgrading to premium:", error);
+            console.error("Error upgrading to premium: [Upgrade Failed]");
             alert(
-              "Payment successful but upgrade failed. Please contact support with payment ID: " +
-                response.razorpay_payment_id
+              "Payment successful but upgrade failed. Please contact support."
             );
             setLoading(false);
           }
@@ -173,16 +174,16 @@ export default function PaymentPage() {
 
       const razorpay = new window.Razorpay(options);
       razorpay.on("payment.failed", function (response: any) {
-        console.error("Payment failed:", response);
+        console.error("Payment failed");
         setRazorpayError(
-          `Payment failed: ${response.error.description || "Please try again."}`
+          `Payment failed. ${response.error.description || "Please try again."}`
         );
         setLoading(false);
       });
 
       razorpay.open();
     } catch (error: any) {
-      console.error("Payment error:", error);
+      console.error("Payment initialization error");
       setRazorpayError(error.message || "Payment failed. Please try again.");
       setLoading(false);
     }
@@ -190,147 +191,179 @@ export default function PaymentPage() {
 
   return (
     <main className="min-h-screen bg-[#0a0a0a] text-white pt-20 pb-12 px-4 flex items-center justify-center">
-      <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Order Summary */}
-        <div className="space-y-6">
-          <div className="bg-[#12121a] border border-white/10 rounded-2xl p-6">
-            <h2 className="text-xl font-bold mb-4">Order Summary</h2>
-            <div className="flex justify-between items-center py-4 border-b border-white/5">
-              <div>
-                <p className="font-semibold">Converty Premium</p>
-                <p className="text-sm text-gray-400">{PREMIUM_PLAN_LABEL}</p>
-              </div>
-              <p className="font-bold">{formatPremiumPrice()}</p>
-            </div>
-            <div className="flex justify-between items-center py-4 text-xl font-bold">
-              <p>Total</p>
-              <p className="text-purple-400">{formatPremiumPrice()}</p>
-            </div>
+      {paymentSuccess ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-lg w-full bg-[#12121a] border border-green-500/20 rounded-3xl p-8 text-center shadow-2xl relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-green-400 to-emerald-600" />
+          <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6">
+            <Check className="w-10 h-10 text-green-500" />
           </div>
-
-          <div className="flex items-center gap-3 text-sm text-gray-400 bg-green-500/10 p-4 rounded-xl border border-green-500/20">
-            <Shield className="w-5 h-5 text-green-500" />
-            <p>SSL Secure Payment. 30-Day Money Back Guarantee.</p>
-          </div>
-        </div>
-
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-          <h2 className="text-xl font-bold mb-6">Payment Details</h2>
-
-          <div className="bg-[#12121a] p-4 rounded-xl border border-white/5 mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-[#0c244b] p-2 rounded">
-                {/* Simulating Razorpay Logo */}
-                <span className="font-bold text-blue-400">Razorpay</span>
-              </div>
-              <span className="text-sm font-medium text-gray-300">
-                Secure Checkout
-              </span>
-            </div>
-            <Check className="w-5 h-5 text-green-500" />
-          </div>
-
-          <div className="mb-6 space-y-3">
-            <label className="flex items-start gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors cursor-pointer group">
-              <div
-                className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                  termsAccepted
-                    ? "bg-purple-600 border-purple-600"
-                    : "border-gray-500 group-hover:border-purple-400"
-                }`}
-              >
-                {termsAccepted && <Check className="w-3.5 h-3.5 text-white" />}
-              </div>
-              <input
-                type="checkbox"
-                className="hidden"
-                checked={termsAccepted}
-                onChange={(e) => setTermsAccepted(e.target.checked)}
-              />
-              <span className="text-sm text-gray-400 select-none">
-                I agree to the{" "}
-                <Link
-                  href="/terms"
-                  target="_blank"
-                  className="text-purple-400 underline hover:text-purple-300"
-                >
-                  Terms and Conditions
-                </Link>{" "}
-                and{" "}
-                <Link
-                  href="/privacy"
-                  target="_blank"
-                  className="text-purple-400 underline hover:text-purple-300"
-                >
-                  Privacy Policy
-                </Link>
-                .
-              </span>
-            </label>
-          </div>
-
-          {/* Error Message */}
-          {razorpayError && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3"
-            >
-              <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-400">{razorpayError}</p>
-            </motion.div>
-          )}
-
-          {/* Configuration Warning */}
-          {!isConfigured && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3"
-            >
-              <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-amber-400">
-                <p className="font-semibold mb-1">
-                  Payment System Not Configured
-                </p>
-                <p className="text-amber-300/80">
-                  Razorpay payment integration is not available. Please contact
-                  support or check your configuration.
-                </p>
-              </div>
-            </motion.div>
-          )}
-
-          <button
-            onClick={handlePayment}
-            disabled={
-              loading ||
-              !termsAccepted ||
-              !isConfigured ||
-              !razorpayLoaded ||
-              !!razorpayError
-            }
-            className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-lg hover:shadow-lg hover:shadow-purple-500/25 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" /> Processing...
-              </>
-            ) : !isConfigured ? (
-              "Payment Not Available"
-            ) : !razorpayLoaded ? (
-              "Loading Payment..."
-            ) : (
-              "Pay with Razorpay"
-            )}
-          </button>
-
-          <p className="text-center text-xs text-gray-500 mt-4">
-            Secure payment powered by Razorpay. Your payment information is
-            encrypted and secure.
+          <h1 className="text-3xl font-bold text-white mb-2">
+            Payment Successful!
+          </h1>
+          <p className="text-gray-400 mb-8">
+            Thank you for upgrading to Premium. Your account has been instantly
+            upgraded.
           </p>
+          <Link href="/convert?tab=word">
+            <button className="w-full py-4 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg hover:shadow-lg hover:shadow-green-500/25 transition-all transform hover:scale-[1.02]">
+              Start Converting
+            </button>
+          </Link>
+        </motion.div>
+      ) : (
+        <div className="max-w-4xl w-full">
+          <Link
+            href="/premium"
+            className="inline-flex items-center text-gray-400 hover:text-white transition-colors mb-8 hover:underline"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Plans
+          </Link>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Order Summary */}
+            <div className="space-y-6">
+              <div className="bg-[#12121a] border border-white/10 rounded-2xl p-6">
+                <h2 className="text-xl font-bold mb-4">Order Summary</h2>
+                <div className="flex justify-between items-center py-4 border-b border-white/5">
+                  <div>
+                    <p className="font-semibold">Converty Premium</p>
+                    <p className="text-sm text-gray-400">
+                      {PREMIUM_PLAN_LABEL}
+                    </p>
+                  </div>
+                  <p className="font-bold">{formatPremiumPrice()}</p>
+                </div>
+                <div className="flex justify-between items-center py-4 text-xl font-bold">
+                  <p>Total</p>
+                  <p className="text-purple-400">{formatPremiumPrice()}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 text-sm text-gray-400 bg-green-500/10 p-4 rounded-xl border border-green-500/20">
+                <Shield className="w-5 h-5 text-green-500" />
+                <p>SSL Secure Payment. 30-Day Money Back Guarantee.</p>
+              </div>
+            </div>
+
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <h2 className="text-xl font-bold mb-6">Payment Details</h2>
+
+              <div className="bg-[#12121a] p-4 rounded-xl border border-white/5 mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="bg-[#0c244b] p-2 rounded">
+                    {/* Simulating Razorpay Logo */}
+                    <span className="font-bold text-blue-400">Razorpay</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-300">
+                    Secure Checkout
+                  </span>
+                </div>
+                <Check className="w-5 h-5 text-green-500" />
+              </div>
+
+              <div className="mb-6 space-y-3">
+                <label className="flex items-start gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors cursor-pointer group">
+                  <div
+                    className={`mt-0.5 w-5 h-5 rounded border flex items-center justify-center transition-all ${
+                      termsAccepted
+                        ? "bg-purple-600 border-purple-600"
+                        : "border-gray-500 group-hover:border-purple-400"
+                    }`}
+                  >
+                    {termsAccepted && (
+                      <Check className="w-3.5 h-3.5 text-white" />
+                    )}
+                  </div>
+                  <input
+                    type="checkbox"
+                    className="hidden"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                  />
+                  <span className="text-sm text-gray-400 select-none">
+                    I agree to the{" "}
+                    <Link
+                      href="/terms"
+                      target="_blank"
+                      className="text-purple-400 underline hover:text-purple-300"
+                    >
+                      Terms and Conditions
+                    </Link>{" "}
+                    and{" "}
+                    <Link
+                      href="/privacy"
+                      target="_blank"
+                      className="text-purple-400 underline hover:text-purple-300"
+                    >
+                      Privacy Policy
+                    </Link>
+                    .
+                  </span>
+                </label>
+              </div>
+
+              {/* Error Message */}
+              {razorpayError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3"
+                >
+                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-red-400">{razorpayError}</p>
+                </motion.div>
+              )}
+
+              {/* Configuration Warning */}
+              {!isConfigured && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-start gap-3"
+                >
+                  <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-amber-400">
+                    <p className="font-semibold mb-1">
+                      Payment System Not Configured
+                    </p>
+                    <p className="text-amber-300/80">
+                      Razorpay payment integration is not available. Please
+                      contact support or check your configuration.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+
+              <button
+                onClick={handlePayment}
+                disabled={
+                  loading ||
+                  !termsAccepted ||
+                  !isConfigured ||
+                  !razorpayLoaded ||
+                  !!razorpayError
+                }
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold text-lg hover:shadow-lg hover:shadow-purple-500/25 transition-all transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" /> Processing...
+                  </>
+                ) : !isConfigured ? (
+                  "Payment Not Available"
+                ) : !razorpayLoaded ? (
+                  "Loading Payment..."
+                ) : (
+                  "Pay with Razorpay"
+                )}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }

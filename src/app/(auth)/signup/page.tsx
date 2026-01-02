@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Check, ArrowRight, Mail, Lock, User } from "lucide-react";
+import { Loader2, Check, ArrowRight, Mail, Lock, User, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 export default function SignupPage() {
@@ -27,7 +27,7 @@ export default function SignupPage() {
       router.push("/convert");
     } catch (e: any) {
       // Typed as any to handle unknow error types safely
-      console.error("Signup error", e);
+      console.error("Signup error");
       alert(e.message || "Signup failed");
       setLoading(false);
     }
@@ -57,7 +57,7 @@ export default function SignupPage() {
       // Successful signup automatically logs in - redirect to verification
       router.push("/verify-email");
     } catch (error: any) {
-      console.error("Registration failed", error);
+      console.error("Registration failed");
       alert(error.message || "Registration failed. Please try again.");
       setLoading(false);
     }
@@ -69,6 +69,14 @@ export default function SignupPage() {
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-indigo-600/10 rounded-full blur-[140px]" />
       </div>
+
+      <Link
+        href="/"
+        className="absolute top-8 left-8 text-gray-500 hover:text-white transition-colors flex items-center gap-2 z-20 group"
+      >
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+        <span className="text-sm font-medium">Back to Home</span>
+      </Link>
 
       <div className="w-full max-w-md relative z-10">
         {/* Steps Indicator */}

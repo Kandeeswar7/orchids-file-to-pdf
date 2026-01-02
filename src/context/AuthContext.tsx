@@ -49,6 +49,7 @@ interface AuthContextType {
   }) => Promise<void>;
   deleteProfile: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  checkUsageReset: () => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -71,6 +72,7 @@ const AuthContext = createContext<AuthContextType>({
   recordConversion: async () => {},
   deleteProfile: async () => {},
   resetPassword: async () => {},
+  checkUsageReset: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -79,49 +81,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [plan, setPlan] = useState<"free" | "premium">("free");
   const [dailyUsage, setDailyUsage] = useState(0);
 
+  // Helper for safe usage reading
+  const getSafeUsage = (key: string): number => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return 0;
+    const val = parseInt(raw, 10);
+    return isNaN(val) ? 0 : val;
+  };
+
   /*
    * CHECK AND RESET DAILY USAGE (Global / Date-Based)
    * reset happens if the date has changed, clearing ALL browser-local usage.
    * Firestore is NOT reset here (it is informational/historical).
    */
-  const checkUsageReset = async () => {
+  const checkUsageReset = () => {
+    if (typeof window === "undefined") return; // SSR check
+
     const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
     const lastResetKey = "converty_last_reset_date";
     const lastResetDate = localStorage.getItem(lastResetKey);
+    const anonKey = "converty_usage_anonymous";
+    const userKey = user ? `converty_usage_${user.uid}` : "";
 
-    // If dates differ, it's a new day => Reset Everything
+    // If dates differ -> NEW DAY RESET
     if (lastResetDate !== today) {
       console.log(
         `[AuthContext] New day detected (${today}). Resetting ALL local usage.`
       );
 
-      // 1. Update Date
       localStorage.setItem(lastResetKey, today);
+      localStorage.setItem(anonKey, "0");
 
-      // 2. Reset Anonymous Usage
-      localStorage.setItem("converty_usage_anonymous", "0");
-
-      // 3. Reset All User Keys (We can't iterate easily, but we can reset the current one if knowing UID,
-      //    or ideally we rely on the specific key being 0 if not found, but to be safe and clean,
-      //    we might want to iterate. However, lazily resetting the current user key when accessed is also fine,
-      //    BUT the requirement implies a "browser-wide reset".
-      //    Since we can't efficiently regex-delete keys without iteration, we will rely on
-      //    resetting the *keys we access* or just accepting that old keys rot.
-      //    Actually, simple solution: We only strictly care about 'anonymous' and 'current'.
-      //    But to be perfect: we could clear keys starting with 'converty_usage_'.
-      //    Let's stick to safe implementation: Reset anonymous now.
-      //    The `fetchUserData` logic handles the "current user" key reset implicitly?
-      //    No, we should reset the current user's key if we know it.
-      //    To support the "Global Reset" requirement best without knowing UID here:
-      //    We will clean keys *when we read them* if strictness is needed,
-      //    OR we assume this function is called often enough.
-      //    Wait, simpler: We can just clear `converty_usage_anonymous` here.
-      //    And `fetchUserData` can handle its specific user key if needed?
-      //    Actually, the user said "Reset anonymous + authenticated usage on day change".
-      //    So we must at least reset the anonymous one.
-      //    For authenticated keys, if we don't clear them, they remain high from yesterday.
-      //    SO WE MUST ITERATE to do a true global reset or use a versioned key strategy.
-      //    Let's iterate for safety as it's cleaner for "Global Reset".
+      // Reset all usage keys for safety
       Object.keys(localStorage).forEach((key) => {
         if (key.startsWith("converty_usage_")) {
           localStorage.setItem(key, "0");
@@ -129,24 +120,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       setDailyUsage(0);
-      return true; // Reset occurred
+      return;
     }
-    return false; // No reset needed
+
+    // Ensure keys exist even if no reset needed (Fixes Bug 1: Init)
+    if (localStorage.getItem(anonKey) === null) {
+      localStorage.setItem(anonKey, "0");
+    }
+    if (userKey && localStorage.getItem(userKey) === null) {
+      localStorage.setItem(userKey, "0");
+    }
   };
 
   const fetchUserData = async (uid: string) => {
     // 1. Run Global Reset Check
-    await checkUsageReset();
+    checkUsageReset();
 
     if (!db) {
       // Demo/Offline Mode
       // Load usage (Max of anon and user)
-      const anonUsage = parseInt(
-        localStorage.getItem("converty_usage_anonymous") || "0"
-      );
-      const userUsage = parseInt(
-        localStorage.getItem(`converty_usage_${uid}`) || "0"
-      );
+      const anonUsage = getSafeUsage("converty_usage_anonymous");
+      const userUsage = getSafeUsage(`converty_usage_${uid}`);
       setDailyUsage(Math.max(anonUsage, userUsage));
       setPlan("free");
       return;
@@ -188,59 +182,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPlan(currentPlan);
 
         // 2. Effective Usage Calculation
-        // Source of Truth: localStorage enforcement.
-        // Rule: effectiveFreeUsage = Math.max(anonymousUsage, authenticatedUsage)
-
-        const anonUsage = parseInt(
-          localStorage.getItem("converty_usage_anonymous") || "0"
-        );
-        const userLocalUsage = parseInt(
-          localStorage.getItem(`converty_usage_${uid}`) || "0"
-        );
-        const firestoreUsage = data.dailyConversionCount || 0;
-
-        // We use Math.max to enforce the "floor" of anonymous usage
-        // We also check Firestore to ensure cross-device usage contributes (if we wanted to enforce that),
-        // but user instructions say "localStorage is the source of truth for limits".
-        // HOWEVER, "authenticatedUsage" usually implies the account's usage.
-        // If I use 2 on Device A, and login on Device B, I should technically be 2?
-        // The instructions say "Browser-scoped".
-        // "Anonymous usage depends on browser".
-        // "Authorized usage... depends on account?"
-        // User said: "Authenticated usage can never be lower than browser usage".
-        // User ALSO said: "localStorage = only enforcement source".
-        // So we will prioritize localStorage, but we can respect Firestore if it's higher?
-        // User said: "Firestore is informational / historical".
-        // So we will STRICTLY use localStorage for enforcement to avoid sync bugs as requested.
+        const anonUsage = getSafeUsage("converty_usage_anonymous");
+        const userLocalUsage = getSafeUsage(`converty_usage_${uid}`);
 
         const effectiveUsage = Math.max(anonUsage, userLocalUsage);
         setDailyUsage(effectiveUsage);
-
-        // Optional: If Firestore is wildly different, we might sync, but per instructions, we avoid logic that breaks enforcement.
-        // We will stick to the pure local calculation for safety.
       }
     } catch (e) {
       console.error("Error fetching user data:", e);
       setPlan("free");
-      // Fallback to local
-      const anonUsage = parseInt(
-        localStorage.getItem("converty_usage_anonymous") || "0"
-      );
-      const userUsage = parseInt(
-        localStorage.getItem(`converty_usage_${uid}`) || "0"
-      );
+      const anonUsage = getSafeUsage("converty_usage_anonymous");
+      const userUsage = getSafeUsage(`converty_usage_${uid}`);
       setDailyUsage(Math.max(anonUsage, userUsage));
     }
   };
 
   const loadAnonymousUsage = () => {
-    checkUsageReset().then(() => {
-      const usage = parseInt(
-        localStorage.getItem("converty_usage_anonymous") || "0"
-      );
-      setDailyUsage(usage);
-      setPlan("free");
-    });
+    checkUsageReset();
+    const usage = getSafeUsage("converty_usage_anonymous");
+    setDailyUsage(usage);
+    setPlan("free");
   };
 
   useEffect(() => {
@@ -349,7 +310,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setPlan("free");
         setDailyUsage(0);
-        window.location.href = "/login";
+        setDailyUsage(0);
+        window.location.href = "/";
       }
     };
 
@@ -372,11 +334,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await firebaseSignOut(auth);
       // Hard redirect to clear any in-memory state
-      window.location.href = "/login";
+      window.location.href = "/";
     } catch (error) {
       console.error("SignOut Error:", error);
       // Force logout anyway
-      window.location.href = "/login";
+      window.location.href = "/";
     }
   };
 
@@ -405,6 +367,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         premiumExpiresAt: expiresAt.toISOString(),
       });
       setPlan("premium");
+
+      // FIX BUG 2: Reset Usage on Upgrade
+      console.log("[AuthContext] Upgrade successful. Resetting limits.");
+      const today = new Date().toISOString().split("T")[0];
+      localStorage.setItem("converty_last_reset_date", today);
+
+      // Explicitly zero-out usage keys
+      localStorage.setItem("converty_usage_anonymous", "0");
+      if (user.uid) {
+        localStorage.setItem(`converty_usage_${user.uid}`, "0");
+      }
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("converty_usage_")) {
+          localStorage.setItem(key, "0");
+        }
+      });
+
+      setDailyUsage(0); // Update state instantly
     } catch (e) {
       console.error("Upgrade failed:", e);
       throw e;
@@ -418,14 +398,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     fileSize: number;
   }) => {
     // 0. CHECK FOR DAY ROLLOVER BEFORE INCREMENTING
-    await checkUsageReset();
+    checkUsageReset();
 
     // 1. Always Increment Browser/Anonymous Usage (The Floor)
     let newAnonUsage = 0;
     try {
-      const currentAnon = parseInt(
-        localStorage.getItem("converty_usage_anonymous") || "0"
-      );
+      const currentAnon = getSafeUsage("converty_usage_anonymous");
       newAnonUsage = currentAnon + 1;
       localStorage.setItem("converty_usage_anonymous", newAnonUsage.toString());
     } catch (e) {
@@ -439,9 +417,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userUsageKey = `converty_usage_${user.uid}`;
       let newUserUsage = 0;
       try {
-        const currentUserUsage = parseInt(
-          localStorage.getItem(userUsageKey) || "0"
-        );
+        const currentUserUsage = getSafeUsage(userUsageKey);
         newUserUsage = currentUserUsage + 1;
         localStorage.setItem(userUsageKey, newUserUsage.toString());
       } catch (e) {
@@ -482,8 +458,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // 2. Delete Auth User
       await deleteUser(user);
+
+      // We do NOT redirect here anymore. The caller (DeleteAccountModal) will handle the Success UI and then redirect.
+      // Context state update will happen automatically via onAuthStateChanged, but we can optimise:
       setUser(null);
-      window.location.href = "/";
     } catch (error) {
       console.error("Delete profile failed:", error);
       throw error;
@@ -512,6 +490,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (user) await fetchUserData(user.uid);
         },
         upgradeToPremium,
+        checkUsageReset,
         recordConversion,
         deleteProfile,
         resetPassword,

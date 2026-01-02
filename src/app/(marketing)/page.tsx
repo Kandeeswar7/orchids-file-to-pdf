@@ -147,17 +147,23 @@
 //   );
 // }
 
-
 "use client";
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Shield, Zap, FileText, CheckCircle2, ChevronRight } from "lucide-react";
+import {
+  ArrowRight,
+  Shield,
+  Zap,
+  FileText,
+  CheckCircle2,
+  ChevronRight,
+} from "lucide-react";
+import { Footer } from "@/components/Footer";
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-purple-500/30 overflow-x-hidden">
-      
       {/* Navbar */}
       <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl supports-[backdrop-filter]:bg-[#0a0a0a]/60">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -187,7 +193,10 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 overflow-hidden">
         {/* Dynamic Background Glows */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none -z-10 mix-blend-screen animate-pulse" style={{ animationDuration: '4s' }} />
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] pointer-events-none -z-10 mix-blend-screen animate-pulse"
+          style={{ animationDuration: "4s" }}
+        />
         <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none -z-10" />
 
         <div className="max-w-7xl mx-auto px-6 text-center relative z-10">
@@ -230,7 +239,7 @@ export default function LandingPage() {
                 Start Converting Free
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
-              
+
               <Link
                 href="/about"
                 className="w-full sm:w-auto px-8 py-4 rounded-xl border border-white/10 hover:bg-white/5 text-gray-300 hover:text-white font-medium transition-all flex items-center justify-center gap-2"
@@ -258,11 +267,15 @@ export default function LandingPage() {
       {/* Features Grid */}
       <section className="py-24 bg-[#0F0F0F]/50 border-t border-white/5 relative">
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,black,transparent)] pointer-events-none" />
-        
+
         <div className="max-w-7xl mx-auto px-6 relative z-10">
           <div className="text-center mb-16 space-y-4">
-            <h2 className="text-3xl md:text-4xl font-bold">Why professionals choose Converty</h2>
-            <p className="text-gray-400">Built for accuracy, designed for speed.</p>
+            <h2 className="text-3xl md:text-4xl font-bold">
+              Why professionals choose Converty
+            </h2>
+            <p className="text-gray-400">
+              Built for accuracy, designed for speed.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -273,7 +286,7 @@ export default function LandingPage() {
                 desc: "Our optimized rendering engine converts complex documents in milliseconds, not minutes.",
                 color: "text-amber-400",
                 bg: "bg-amber-400/10",
-                border: "group-hover:border-amber-400/30"
+                border: "group-hover:border-amber-400/30",
               },
               {
                 icon: Shield,
@@ -281,7 +294,7 @@ export default function LandingPage() {
                 desc: "Your files are processed in isolated containers and permanently purged automatically after 24 hours.",
                 color: "text-emerald-400",
                 bg: "bg-emerald-400/10",
-                border: "group-hover:border-emerald-400/30"
+                border: "group-hover:border-emerald-400/30",
               },
               {
                 icon: FileText,
@@ -289,7 +302,7 @@ export default function LandingPage() {
                 desc: "We preserve your exact formatting, fonts, and tables. The PDF looks identical to your source file.",
                 color: "text-blue-400",
                 bg: "bg-blue-400/10",
-                border: "group-hover:border-blue-400/30"
+                border: "group-hover:border-blue-400/30",
               },
             ].map((feature, i) => (
               <motion.div
@@ -300,37 +313,20 @@ export default function LandingPage() {
                 transition={{ delay: i * 0.1 }}
                 className={`group p-8 rounded-3xl border border-white/5 bg-[#0a0a0a] hover:bg-[#111] transition-all duration-300 ${feature.border}`}
               >
-                <div className={`w-12 h-12 rounded-2xl ${feature.bg} flex items-center justify-center mb-6 border border-white/5`}>
+                <div
+                  className={`w-12 h-12 rounded-2xl ${feature.bg} flex items-center justify-center mb-6 border border-white/5`}
+                >
                   <feature.icon className={`w-6 h-6 ${feature.color}`} />
                 </div>
                 <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
-                <p className="text-gray-400 leading-relaxed text-sm">{feature.desc}</p>
+                <p className="text-gray-400 leading-relaxed text-sm">
+                  {feature.desc}
+                </p>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="border-t border-white/5 py-12 bg-[#050505]">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2 text-gray-500 text-sm">
-             <span>© {new Date().getFullYear()} Converty Inc.</span>
-          </div>
-          
-          <div className="flex gap-8">
-            <Link href="/privacy" className="text-gray-500 hover:text-white transition-colors text-sm">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="text-gray-500 hover:text-white transition-colors text-sm">
-              Terms of Service
-            </Link>
-            <Link href="/contact" className="text-gray-500 hover:text-white transition-colors text-sm">
-              Contact Support
-            </Link>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -1,42 +1,35 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import { User, Shield, Key, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { User, Shield, Key, Trash2, ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import {
   reauthenticateWithCredential,
   EmailAuthProvider,
   updatePassword,
 } from "firebase/auth";
+import { DeleteAccountModal } from "@/components/DeleteAccountModal";
 
 export default function SettingsPage() {
-  const { user, plan, deleteProfile } = useAuth();
+  const { user, plan } = useAuth();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
-  const handleDelete = async () => {
-    if (
-      confirm(
-        "Are you sure you want to delete your account? This action cannot be undone."
-      )
-    ) {
-      try {
-        await deleteProfile();
-      } catch (error: any) {
-        if (error.code === "auth/requires-recent-login") {
-          alert(
-            "Security Check: Please log out and log back in to delete your account."
-          );
-        } else {
-          alert(
-            "Failed to delete account: " + (error.message || "Unknown error")
-          );
-        }
-      }
-    }
+  // Modal handles the logic now
+  const handleDeleteClick = () => {
+    setShowDeleteModal(true);
   };
 
   return (
     <div className="max-w-4xl mx-auto p-6 md:p-12 space-y-8">
       <div>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center text-gray-400 hover:text-white transition-colors mb-6 group"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+          Back to Dashboard
+        </Link>
         <h1 className="text-3xl font-bold text-white mb-2">Settings</h1>
         <p className="text-gray-400">
           Manage your account preferences and security.
@@ -104,23 +97,29 @@ export default function SettingsPage() {
           <ChangePasswordSection user={user} />
         </div>
 
-        {/* Danger Zone */}
-        <div className="p-6 rounded-2xl bg-red-500/5 border border-red-500/20">
-          <div className="flex items-center gap-3 mb-4 text-red-400 font-semibold">
-            <Trash2 className="w-5 h-5" />
-            Danger Zone
+        {/* Account Controls */}
+        <div className="p-6 rounded-2xl bg-white/5 border border-white/10 h-fit">
+          <div className="flex items-center gap-3 mb-4 text-white font-semibold">
+            <Trash2 className="w-5 h-5 text-gray-400" />
+            Account Management
           </div>
           <p className="text-sm text-gray-400 mb-4">
-            Permanently delete your account and all associated data.
+            If you wish to stop using Converty, you can permanently delete your
+            account. This action is irreversible.
           </p>
           <button
-            onClick={handleDelete}
+            type="button"
+            onClick={handleDeleteClick}
             className="px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-sm border border-red-500/20 transition-colors"
           >
             Delete Account
           </button>
         </div>
       </div>
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+      />
     </div>
   );
 }

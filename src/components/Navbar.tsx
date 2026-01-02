@@ -33,7 +33,7 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link
-          href={user ? "/convert" : "/"}
+          href="/"
           className="flex items-center gap-2 font-bold text-xl tracking-tight"
         >
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
@@ -92,20 +92,19 @@ export function Navbar() {
                     </p>
                   </div>
                 </Link>
-
                 <Link
                   href="/convert?tab=html"
                   className="flex items-start gap-4 p-4 rounded-xl hover:bg-white/5 transition-colors group/item"
                 >
-                  <div className="p-2.5 rounded-lg bg-orange-500/10 text-orange-400 group-hover/item:bg-orange-500/20 transition-colors">
+                  <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-400 group-hover/item:bg-sky-500/20 transition-colors">
                     <FileCode className="w-6 h-6" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-semibold text-white group-hover/item:text-orange-400 transition-colors">
+                    <h4 className="text-sm font-semibold text-white group-hover/item:text-sky-400 transition-colors">
                       HTML to PDF
                     </h4>
                     <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                      Render web pages and code to PDF format.
+                      Convert web pages and code to PDF.
                     </p>
                   </div>
                 </Link>

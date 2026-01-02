@@ -24,7 +24,7 @@ export const PRINT_STYLES = `
   body {
     font-family: 'Noto Sans', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     font-size: 12pt;
-    line-height: 1.5;
+    line-height: 1.6;
     color: #000;
     background: #fff;
   }
@@ -58,9 +58,16 @@ export const PRINT_STYLES = `
   }
 
   td, th {
-    padding: 8px;
-    border: 1px solid #ccc;
+    padding: 12px 15px;
+    border: 1px solid #e0e0e0;
     vertical-align: top;
+    text-align: left;
+  }
+
+  th {
+    background-color: #f8f9fa;
+    font-weight: 700;
+    border-bottom: 2px solid #dee2e6;
   }
 
   /* Image Handling */
@@ -87,14 +94,15 @@ export const EXCEL_STYLES = `
   }
   
   th {
-    background-color: #f3f3f3;
+    background-color: #f0f0f0;
     font-weight: bold;
     border: 1px solid #bfbfbf;
     text-align: center;
+    padding: 8px;
   }
 
   td {
     border: 1px solid #cecece;
-    padding: 4px 8px;
+    padding: 6px 10px;
   }
 `;

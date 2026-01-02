@@ -24,7 +24,8 @@ import { ConversionErrorView } from "./ConversionErrorView";
 type SubTab = "file" | "code";
 
 export function TabHtml() {
-  const { user, plan, dailyUsage, recordConversion } = useAuth();
+  const { user, plan, dailyUsage, recordConversion, checkUsageReset } =
+    useAuth();
   const [subTab, setSubTab] = useState<SubTab>("file");
   const [files, setFiles] = useState<File[]>([]); // CHANGED: Single file -> Array
   const [code, setCode] = useState("");
@@ -32,6 +33,7 @@ export function TabHtml() {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitMessage, setLimitMessage] = useState("");
   const [conversionFailed, setConversionFailed] = useState(false);
+  const [errorType, setErrorType] = useState<"timeout" | "generic">("generic");
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -77,26 +79,71 @@ export function TabHtml() {
   };
 
   const handleConvert = async () => {
-    // 1. LIMIT CHECKS
+    // 1. STRICT VALIDATION ORDER
+    // A. Usage Reset
+    checkUsageReset();
+
     const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    const currentUsage = isNaN(dailyUsage) ? 0 : dailyUsage;
 
     if (subTab === "file" && files.length === 0) return;
     if (subTab === "code" && !code) return;
 
-    // Daily Limit Check
+    // B. File Size Validation
+    if (subTab === "file") {
+      for (const file of files) {
+        const sizeMB = file.size / (1024 * 1024);
+        if (sizeMB > limits.maxFileSizeMB) {
+          setLimitMessage(
+            `File "${file.name}" exceeds the ${
+              plan === "free" ? "free " : ""
+            }plan limit of ${limits.maxFileSizeMB}MB.${
+              plan === "free" ? " Upgrade to convert larger files." : ""
+            }`
+          );
+          setShowLimitModal(true);
+          return;
+        }
+      }
+    } else {
+      // Code validation
+      const sizeMB = code.length / (1024 * 1024);
+      if (sizeMB > limits.maxFileSizeMB) {
+        setLimitMessage(
+          `Code content too large (${sizeMB.toFixed(1)}MB). Limit is ${
+            limits.maxFileSizeMB
+          }MB.`
+        );
+        setShowLimitModal(true);
+        return;
+      }
+    }
+
+    // C. File Count Validation (subTab "code" counts as 1)
     const count = subTab === "file" ? files.length : 1;
-    if (dailyUsage + count > limits.maxDailyConversions) {
+    const maxFiles = plan === "premium" ? 10 : 1;
+
+    if (subTab === "file" && files.length > maxFiles) {
       setLimitMessage(
-        `Daily limit reached. You can only convert ${
-          limits.maxDailyConversions - dailyUsage
-        } more files today.`
+        plan === "free"
+          ? "Upgrade to convert multiple files at once."
+          : `You can only convert up to ${maxFiles} files at once.`
       );
       setShowLimitModal(true);
       return;
     }
 
+    // D. Daily Usage Validation (LAST)
+    if (currentUsage + count > limits.maxDailyConversions) {
+      setLimitMessage("Free limit reached. Upgrade to allow multiple files.");
+      setShowLimitModal(true);
+      return;
+    }
+    
+
     setIsConverting(true);
     setConversionFailed(false);
+    setErrorType("generic");
 
     // Create new abort controller
     abortControllerRef.current = new AbortController();
@@ -113,14 +160,10 @@ export function TabHtml() {
           if (signal.aborted) throw new DOMException("Aborted", "AbortError");
 
           try {
-            // Check File Size
+            // Double-check Size per file
             const sizeMB = file.size / (1024 * 1024);
             if (sizeMB > limits.maxFileSizeMB) {
-              throw new Error(
-                `File too large (${sizeMB.toFixed(1)}MB). Limit is ${
-                  limits.maxFileSizeMB
-                }MB.`
-              );
+              throw new Error(`File too large (${sizeMB.toFixed(1)}MB)`);
             }
 
             const fileSize = file.size;
@@ -144,10 +187,19 @@ export function TabHtml() {
             lastJobId = jobId;
 
             // Poll for Status
+            const MAX_POLLING_TIME = 60000;
+            const startTime = Date.now();
+
             await new Promise<void>((resolve, reject) => {
               const checkStatus = async () => {
                 if (signal.aborted) {
                   reject(new DOMException("Aborted", "AbortError"));
+                  return;
+                }
+
+                // TIMEOUT CHECK
+                if (Date.now() - startTime > MAX_POLLING_TIME) {
+                  reject(new Error("Timeout"));
                   return;
                 }
 
@@ -205,7 +257,7 @@ export function TabHtml() {
             successCount++;
           } catch (e: any) {
             if (e.name === "AbortError") throw e;
-            console.error(`Failed to convert ${file.name}`, e);
+            console.error(`Failed to convert ${file.name}`);
             errors.push(`${file.name}: ${e.message}`);
           }
         }
@@ -239,10 +291,19 @@ export function TabHtml() {
         lastJobId = jobId;
 
         // Poll for Status
+        const MAX_POLLING_TIME = 60000;
+        const startTime = Date.now();
+
         await new Promise<void>((resolve, reject) => {
           const checkStatus = async () => {
             if (signal.aborted) {
               reject(new DOMException("Aborted", "AbortError"));
+              return;
+            }
+
+            // TIMEOUT CHECK
+            if (Date.now() - startTime > MAX_POLLING_TIME) {
+              reject(new Error("Timeout"));
               return;
             }
 
@@ -331,8 +392,11 @@ export function TabHtml() {
         console.log("Conversion cancelled");
         return;
       }
-      console.error("Error converting HTML:", error);
+      console.error("Error converting HTML");
       // Determine if we should show error page
+      if (error.message === "Timeout") {
+        setErrorType("timeout");
+      }
       setConversionFailed(true);
       // toast.error(`${error.message || "Conversion failed. Please try again."}`);
     } finally {
@@ -375,6 +439,7 @@ export function TabHtml() {
           // Let's assume onUploadAnother in HTML context means reset everything.
           if (subTab === "code") setCode("");
         }}
+        errorType={errorType}
       />
     );
   }
@@ -393,7 +458,7 @@ export function TabHtml() {
           HTML to PDF
         </h2>
         <p className="text-sm text-gray-400">
-          Convert HTML files or raw code into professional PDFs
+          Convert web pages or raw HTML code into professional PDFs
         </p>
       </motion.div>
 
@@ -419,7 +484,7 @@ export function TabHtml() {
             {subTab === "file" && (
               <motion.div
                 layoutId="activeSubTab"
-                className="absolute inset-0 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg shadow-lg"
+                className="absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg shadow-lg"
                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
               />
             )}
@@ -440,7 +505,7 @@ export function TabHtml() {
             {subTab === "code" && (
               <motion.div
                 layoutId="activeSubTab"
-                className="absolute inset-0 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg shadow-lg"
+                className="absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg shadow-lg"
                 transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
               />
             )}
@@ -489,7 +554,7 @@ export function TabHtml() {
                   animate={{ opacity: 1, scale: 1 }}
                 >
                   <div className="w-16 h-16 rounded-2xl bg-orange-500/20 flex items-center justify-center mb-4 mx-auto">
-                    <FileCode className="w-8 h-8 text-orange-400" />
+                    <FileCode className="w-8 h-8 text-orange-500" />
                   </div>
                   <p className="font-semibold text-lg text-white mb-1">
                     {files.length === 1
@@ -532,13 +597,13 @@ export function TabHtml() {
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="<!DOCTYPE html>&#10;<html>&#10;  <head>&#10;    <title>My Document</title>&#10;  </head>&#10;  <body>&#10;    <h1>Hello World</h1>&#10;  </body>&#10;</html>"
-                className="w-full h-64 bg-black/40 border-2 border-white/10 rounded-2xl p-6 font-mono text-sm text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-orange-500/50 focus:ring-2 focus:ring-orange-500/20 resize-none transition-all"
+                className="w-full h-64 bg-black/40 border-2 border-white/10 rounded-2xl p-6 font-mono text-sm text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 resize-none transition-all"
                 disabled={isConverting}
                 aria-label="HTML code input"
               />
               {code && (
                 <motion.div
-                  className="absolute top-4 right-4 px-3 py-1 bg-orange-500/20 border border-orange-500/30 rounded-lg text-xs text-orange-400 font-medium"
+                  className="absolute top-4 right-4 px-3 py-1 bg-sky-500/20 border border-sky-500/30 rounded-lg text-xs text-sky-400 font-medium"
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                 >
@@ -584,7 +649,7 @@ export function TabHtml() {
                 (subTab === "code" && !code) ||
                 isConverting
                 ? "bg-white/5 text-gray-500 cursor-not-allowed"
-                : "bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-lg shadow-orange-900/30"
+                : "bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-900/30"
             )}
             whileHover={
               !isConverting &&

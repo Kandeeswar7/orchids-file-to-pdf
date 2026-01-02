@@ -226,3 +226,61 @@ export async function convertWordToPdf(buffer: Buffer, options: ConvertOptions):
 
 
 
+// Convert URL to PDF
+export async function convertUrlToPdf(url: string, options: ConvertOptions): Promise<string> {
+  const fileName = `${randomUUID()}.pdf`;
+  const pdfFilePath = path.join(TEMP_DIR, fileName);
+
+  console.log(`[Converter] Generating PDF from URL: ${url}`);
+
+  try {
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+    
+    // A4 viewport
+    await page.setViewport({ 
+      width: 1240, 
+      height: 1754,
+      deviceScaleFactor: 1 
+    });
+
+    await page.emulateMediaType('screen');
+
+    // Goto URL with timeout
+    await page.goto(url, { 
+      waitUntil: 'networkidle0',
+      timeout: 60000 
+    });
+
+    // Inject print styles
+    await page.addStyleTag({
+        content: `
+            ${PRINT_STYLES}
+            ${options.orientation === 'landscape' ? '@page { size: landscape; }' : ''}
+        `
+    });
+
+    const pdfOptions: any = {
+      path: pdfFilePath,
+      format: options.paperSize || 'A4',
+      landscape: options.orientation === 'landscape',
+      printBackground: true,
+      margin: {
+        top: '10mm',
+        right: '10mm',
+        bottom: '10mm',
+        left: '10mm'
+      },
+      scale: 1
+    };
+
+    await page.pdf(pdfOptions);
+    await page.close();
+
+    console.log(`[Converter] PDF generated successfully: ${pdfFilePath}`);
+    return fileName;
+  } catch (error) {
+    console.error('[Converter] URL conversion error:', error);
+    throw new Error(`URL conversion failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}

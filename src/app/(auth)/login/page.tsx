@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 
@@ -46,7 +46,7 @@ export default function LoginPage() {
       if (user) checkVerification(user);
       else router.push("/convert");
     } catch (err: any) {
-      console.error("Auth error:", err);
+      console.error("Auth error");
       const msg = err.message?.includes("auth/popup-closed-by-user")
         ? "Sign in cancelled"
         : "Failed to sign in. Please try again.";
@@ -64,7 +64,7 @@ export default function LoginPage() {
       // Check verification status
       checkVerification(user);
     } catch (err: any) {
-      console.error("Login error:", err);
+      console.error("Login error");
       setError("Invalid email or password");
       setLoading(false);
     }
@@ -75,6 +75,14 @@ export default function LoginPage() {
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[-25%] left-[20%] w-[500px] h-[500px] bg-purple-500/25 blur-[140px]" />
       </div>
+
+      <Link
+        href="/"
+        className="absolute top-8 left-8 text-gray-500 hover:text-white transition-colors flex items-center gap-2 z-20 group"
+      >
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+        <span className="text-sm font-medium">Back to Home</span>
+      </Link>
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}

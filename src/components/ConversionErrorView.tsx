@@ -15,6 +15,7 @@ interface ConversionErrorViewProps {
   fileType: "word" | "excel" | "html";
   onRetry: () => void;
   onUploadAnother: () => void;
+  errorType?: "timeout" | "generic";
 }
 
 export function ConversionErrorView({
@@ -22,6 +23,7 @@ export function ConversionErrorView({
   fileType,
   onRetry,
   onUploadAnother,
+  errorType = "generic",
 }: ConversionErrorViewProps) {
   const getAccentColor = () => {
     switch (fileType) {
@@ -37,6 +39,7 @@ export function ConversionErrorView({
   };
 
   const color = getAccentColor();
+  const isTimeout = errorType === "timeout";
 
   return (
     <div className="w-full flex flex-col items-center justify-center p-8 bg-[#0a0a0a] rounded-3xl min-h-[500px] border border-white/5 relative overflow-hidden">
@@ -65,7 +68,9 @@ export function ConversionErrorView({
 
         {/* Title */}
         <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight">
-          Oh no! We couldn’t process your file.
+          {isTimeout
+            ? "Taking longer than expected..."
+            : "Oh no! We couldn’t process your file."}
         </h2>
 
         {/* Subtitle */}
@@ -75,8 +80,9 @@ export function ConversionErrorView({
               "{fileName}"
             </span>
           ) : null}
-          This file could not be converted because it may be damaged or contains
-          unsupported content.
+          {isTimeout
+            ? "The server is busy or the file is complex. Please try again."
+            : "This file could not be converted because it may be damaged or contains unsupported content."}
         </p>
 
         {/* Explanation Block */}

@@ -55,7 +55,7 @@ export default function TermsPage() {
     <main className="min-h-screen bg-[#0a0a0a] text-white pt-24 pb-12 px-6">
       <div className="max-w-3xl mx-auto space-y-8">
         <section className="space-y-4">
-          <h1 className="text-4xl font-bold text-white">Terms of Service</h1>
+          <h1 className="text-4xl font-bold text-white">Terms and Conditions</h1>
           <p className="text-sm text-gray-500">
             Last updated: December 28, 2025
           </p>

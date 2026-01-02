@@ -10,7 +10,7 @@ export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, provider);
     return result.user;
   } catch (error: any) {
-    console.error("Google Sign In Error:", error);
+    console.error("Google Sign In Error");
     throw error;
   }
 };

@@ -50,6 +50,12 @@ export function MultiFilePreview({ jobs, onFinish }: MultiFilePreviewProps) {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#0a0a0a]">
         <div className="flex items-center gap-4">
+          <button
+            onClick={onFinish}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white md:hidden"
+          >:)
+            <ChevronLeft className="w-6 h-6" />
+          </button>
           <div className="flex flex-col">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-green-400" />

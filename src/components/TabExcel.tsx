@@ -22,13 +22,15 @@ import { ConversionErrorView } from "./ConversionErrorView";
 
 export function TabExcel() {
   const router = useRouter();
-  const { user, plan, dailyUsage, recordConversion } = useAuth();
+  const { user, plan, dailyUsage, recordConversion, checkUsageReset } =
+    useAuth();
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitMessage, setLimitMessage] = useState("");
   const [conversionFailed, setConversionFailed] = useState(false);
+  const [errorType, setErrorType] = useState<"timeout" | "generic">("generic");
   const [options, setOptions] = useState({
     orientation: "portrait",
     pageSize: "A4",
@@ -87,22 +89,51 @@ export function TabExcel() {
   const handleConvert = async () => {
     if (files.length === 0) return;
 
-    // 1. LIMIT CHECKS GLOBAL
-    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    // 1. STRICT VALIDATION ORDER
+    // A. Usage Reset
+    checkUsageReset();
 
-    // Daily Limit Check
-    if (dailyUsage + files.length > limits.maxDailyConversions) {
+    const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+    const currentUsage = isNaN(dailyUsage) ? 0 : dailyUsage;
+
+    // B. File Size Validation
+    for (const file of files) {
+      const sizeMB = file.size / (1024 * 1024);
+      if (sizeMB > limits.maxFileSizeMB) {
+        setLimitMessage(
+          `File "${file.name}" exceeds the ${
+            plan === "free" ? "free " : ""
+          }plan limit of ${limits.maxFileSizeMB}MB.${
+            plan === "free" ? " Upgrade to convert larger files." : ""
+          }`
+        );
+        setShowLimitModal(true);
+        return;
+      }
+    }
+
+    // C. File Count Validation
+    const maxFiles = plan === "premium" ? 10 : 1;
+    if (files.length > maxFiles) {
       setLimitMessage(
-        `Daily limit reached. You can only convert ${
-          limits.maxDailyConversions - dailyUsage
-        } more files today.`
+        plan === "free"
+          ? "Upgrade to convert multiple files at once."
+          : `You can only convert up to ${maxFiles} files at once.`
       );
+      setShowLimitModal(true);
+      return;
+    }
+
+    // D. Daily Usage Validation (LAST)
+    if (currentUsage + files.length > limits.maxDailyConversions) {
+      setLimitMessage("Free limit reached. Upgrade to allow multiple files.");
       setShowLimitModal(true);
       return;
     }
 
     setLoading(true);
     setConversionFailed(false);
+    setErrorType("generic");
 
     // Create new abort controller for this batch
     abortControllerRef.current = new AbortController();
@@ -119,13 +150,11 @@ export function TabExcel() {
         if (signal.aborted) throw new DOMException("Aborted", "AbortError");
 
         try {
-          // Size Check per file
+          // Double-check size (paranoid check)
           const sizeMB = file.size / (1024 * 1024);
           if (sizeMB > limits.maxFileSizeMB) {
             throw new Error(
-              `File ${file.name} is too large (${sizeMB.toFixed(
-                1
-              )}MB). Limit is ${limits.maxFileSizeMB}MB.`
+              `File size exceeds limit (${limits.maxFileSizeMB}MB)`
             );
           }
 
@@ -151,10 +180,20 @@ export function TabExcel() {
           lastJobId = jobId;
 
           // 3. Poll for Status
+          const MAX_POLLING_TIME = 60000;
+          const startTime = Date.now();
+
           await new Promise<void>((resolve, reject) => {
             const checkStatus = async () => {
+              // Ensure we check signal inside polling too
               if (signal.aborted) {
                 reject(new DOMException("Aborted", "AbortError"));
+                return;
+              }
+
+              // TIMEOUT CHECK
+              if (Date.now() - startTime > MAX_POLLING_TIME) {
+                reject(new Error("Timeout"));
                 return;
               }
 
@@ -213,7 +252,7 @@ export function TabExcel() {
           successCount++;
         } catch (err: any) {
           if (err.name === "AbortError") throw err;
-          console.error(`Failed to convert ${file.name}`, err);
+          console.error(`Failed to convert ${file.name}`);
           errors.push(`${file.name}: ${err.message}`);
         }
       }
@@ -248,7 +287,10 @@ export function TabExcel() {
         console.log("Conversion aborted by user");
         return;
       }
-      console.error("Critical conversion error:", error);
+      console.error("Critical conversion error");
+      if (error.message === "Timeout") {
+        setErrorType("timeout");
+      }
       setConversionFailed(true);
     } finally {
       if (!abortControllerRef.current?.signal.aborted) {
@@ -272,6 +314,7 @@ export function TabExcel() {
           setConversionFailed(false);
           setFiles([]);
         }}
+        errorType={errorType}
       />
     );
   }
@@ -385,13 +428,21 @@ export function TabExcel() {
                 </motion.div>
               ))}
 
-              {plan === "free" && files.length >= 1 && (
+              {plan === "free" && files.length > 1 && (
+                // <p className="text-xs text-amber-500 mt-2">
+                //   Free limit reached.{" "}
+                //   <span className="font-bold">
+                //     Upgrade to allow multiple files.
+                //   </span>
+                // </p>
                 <p className="text-xs text-amber-500 mt-2">
-                  Free limit reached.{" "}
-                  <span className="font-bold">
-                    Upgrade to allow multiple files.
-                  </span>
-                </p>
+  Free plan allows only one file at a time.{" "}
+  <span className="font-bold">
+    Upgrade to upload multiple files.
+  </span>
+</p>
+
+
               )}
             </div>
           ) : (
